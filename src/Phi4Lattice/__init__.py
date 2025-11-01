@@ -1,1 +1,0 @@
-from main import Phi4Lattice
