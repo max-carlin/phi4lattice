@@ -8,6 +8,7 @@ import numpy as np
 import os
 import jax
 import jax.numpy as jnp
+import src.lattice as lattice
 
 
 
@@ -323,7 +324,20 @@ class TestAction(unittest.TestCase):
 
 
 class TestGradAction(unittest.TestCase):
-    def grad_phi4_action(phi_x, lam, kappa, D):
+    # setup a simple lattice for testing
+    D=random.randint(1,7)
+    L=random.randint(1,7)
+    a_arr = jnp.ones(D, dtype = int)
+    l_arr = jnp.ones(D, dtype = int)*L
+    kappa = random.uniform(-10,10)
+    lam = random.uniform(-10,1.0)
+    lat = lattice.Phi4Lattice(a_array=a_arr,
+                              L_array= l_arr,
+                              kappa=kappa,
+                              lam=lam)
+    lat.randomize_phi(N=1, randomize_keys=True)
+    phi_x = lat.phi_x
+    def grad_phi4_action_manual(self, phi_x, lam, kappa, D):
         """
         compute action gradient (Eq. 2.6)
         ∂S/∂φ_x = −κ ∑_μ [φ_{x+μ} + φ_{x−μ}]+ 2 φ_x + 4 λ φ_x (φ_x^2 − 1)
@@ -339,8 +353,44 @@ class TestGradAction(unittest.TestCase):
         grad_potential =  2*phi_x + 4 * lam * (phi_x**2 - 1) * phi_x
         grad_S = grad_kinetic + grad_potential
         return grad_S
-    pass
     
+    def test_grad_action_vs_manual(self,
+                                   phi_x=phi_x,
+                                   lam=lam,
+                                   kappa=kappa,
+                                   D=D):
+        grad_S_manual = self.grad_phi4_action_manual(phi_x,
+                                                    lam,
+                                                    kappa,
+                                                    D)
+
+        grad_S = grad_action_core(phi_x,
+                                  lam,
+                                  kappa,
+                                  D,
+                                  self.lat.shift,
+                                  self.lat.spatial_axes)
+        self.assertTrue(jnp.allclose(grad_S, grad_S_manual, atol=1e-5))
+
+
+class TestMagnetization(unittest.TestCase):
+    # setup a simple lattice for testing
+    D=random.randint(1,7)
+    L=random.randint(1,7)
+    a_arr = jnp.ones(D, dtype = int)
+    l_arr = jnp.ones(D, dtype = int)*L
+    lat = lattice.Phi4Lattice(a_array=a_arr,
+                              L_array= l_arr,
+                              kappa=0.1,
+                              lam=0.1)
+    lat.randomize_phi(N=1, randomize_keys=True)
+    phi_x = lat.phi_x
+
+    def test_magnetization(self, phi_x=phi_x, D=D):
+        m_manual = phi_x.sum(axis = tuple(range(1,D+1)))
+        m = magnetization(phi_x, D)
+        self.assertTrue(jnp.allclose(m, m_manual, atol=1e-5))
+
 
 if __name__ == '__main__':
     unittest.main()
