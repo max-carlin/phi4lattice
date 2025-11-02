@@ -4,7 +4,7 @@ import numpy as np
 import jax.numpy as jnp
 import jax.random as random
 from .action import action_core
-from .integrators import omelyan_core_scan, hamiltonian_kinetic_core #leapfrog_core_scan, 
+from .integrators import omelyan_core_scan, hamiltonian_kinetic_core, leapfrog_core_scan
 from .prng import make_keys, randomize_core
 from .params import HMCParams
 
@@ -53,12 +53,8 @@ def MD_traj(state, key_pair, params: HMCParams, measure_fns = None):
         print("INTEGRATING")
         output = omelyan_core_scan(mom_refreshed, phi_old, params)
     if params.integrator == 'leap':
-        output = leapfrog_core_scan(mom_refreshed, phi_old,
-                                        params.eps,
-                                        params.N_steps,
-                                        params.lam, params.kappa, params.D,
-                                        params.shift, params.spatial_axes,
-                                        params.record_H)
+        output = leapfrog_core_scan(mom_refreshed, phi_old, params)
+
     print('OUTPUT', output)
 
     mom_fx = output[0]

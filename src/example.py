@@ -20,7 +20,7 @@ xi = 0.1931833
 eps=0.085
 measure_fns = {'magnetization': lambda phi: Phi4Lattice._magnetization_core(phi,lat.D), 
                "phi_snapshot" : lambda phi : phi}
-lat.HMC(N_steps, eps= eps, xi = xi, N_trajectories = N_therm, measure_fns=measure_fns)
+lat.HMC(N_steps, eps= eps, xi = xi, N_trajectories = N_therm, measure_fns=measure_fns, integrator='leap')
 print('done')
 
 
