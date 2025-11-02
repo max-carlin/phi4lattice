@@ -42,21 +42,62 @@ class Phi4Lattice:
     shift: int=field(init=False)
 
 
+    # def __post_init__(self):
+    #     D = len(self.L_array)
+    #     V = jnp.prod(self.L_array)
+    #     lat_shape = tuple((self.L_array // self.a_array).tolist())
+    #     object.__setattr__(self, "D", D)
+    #     object.__setattr__(self, "V", V)
+    #     object.__setattr__(self, "lat_shape", lat_shape)
+
+    #     phi_x, mom_x, spatial_axes, shift = init_fields(lat_shape, self.seed, self.mom_seed, self.n_keys, self.mu, self.sigma, D)
+    #     object.__setattr__(self, "phi_x", phi_x)
+    #     object.__setattr__(self, "mom_x", mom_x)
+    #     object.__setattr__(self, "spatial_axes", spatial_axes)
+    #     object.__setattr__(self, "shift", shift)
+    #     object.__setattr__(self, "master_key", random.PRNGKey(self.seed))
+    #     object.__setattr__(self, 'H_history', None)
     def __post_init__(self):
+        '''
+        initialization of geometric and field quantities (single draw of phi4)
+        '''
+        #--- Sec1
+        #geom
         D = len(self.L_array)
         V = jnp.prod(self.L_array)
-        lat_shape = tuple((self.L_array // self.a_array).tolist())
+        lat_shape = tuple((self.L_array//self.a_array).tolist())
         object.__setattr__(self, "D", D)
         object.__setattr__(self, "V", V)
         object.__setattr__(self, "lat_shape", lat_shape)
 
-        phi_x, mom_x, spatial_axes, shift = init_fields(lat_shape, self.seed, self.mom_seed, self.n_keys, self.mu, self.sigma, D)
+        #single sample field configuration by default (seed = 0, n_keys =1)
+        master_key = random.PRNGKey(self.seed)
+        object.__setattr__(self, 'master_key', master_key)
+        keys = random.split(master_key, self.n_keys)
+        object.__setattr__(self, 'keys', keys)
+
+        #partial pauses computation so vmap can use vectorized computation
+        #by passing an array of keys simultaneously
+        rng = partial(random.normal, shape = self.lat_shape, dtype = jnp.float64)
+        object.__setattr__(self, 'rng', rng)
+        phi_x = self.mu + self.sigma *jax.vmap(rng)(keys)
         object.__setattr__(self, "phi_x", phi_x)
+
+        #---Sec 2
+        mom_master_key = random.PRNGKey(self.mom_seed)
+        object.__setattr__(self, 'mom_master_key', mom_master_key)
+        mom_keys = random.split(mom_master_key, self.n_keys)
+        object.__setattr__(self, 'mom_keys', mom_keys)
+        mom_x = jax.vmap(rng)(mom_keys)
         object.__setattr__(self, "mom_x", mom_x)
-        object.__setattr__(self, "spatial_axes", spatial_axes)
-        object.__setattr__(self, "shift", shift)
-        object.__setattr__(self, "master_key", random.PRNGKey(self.seed))
+
+        spatial_axes = tuple(range(self.phi_x.ndim - self.D, self.phi_x.ndim))
+        object.__setattr__(self, 'spatial_axes', tuple(int(x) for x in spatial_axes))
+        shift = self.phi_x.ndim - self.D
+        object.__setattr__(self, 'shift', shift)
+
         object.__setattr__(self, 'H_history', None)
+
 
     # --------- Field Initialization Methods ---------
     @staticmethod
@@ -78,7 +119,7 @@ class Phi4Lattice:
     #trying to reproduce fig 2.2
     def _randomize_uniform_core(keys, lat_shape):
         rng = partial(random.uniform, shape=lat_shape, dtype=jnp.float64,
-                        minval=0.0, maxval=1.0)
+                        minval=-1.0, maxval=1.0)
         return jax.vmap(rng)(keys)
 
 
@@ -125,6 +166,23 @@ class Phi4Lattice:
         object.__setattr__(self, "mom_keys", mom_keys)
         mom_xs = self._randomize_core(mom_keys, self.lat_shape, mu=0, sigma=1)
         object.__setattr__(self, 'mom_x', mom_xs)
+        return self
+    
+    #use for constant fields for simple magnetization expectations
+    def _constant_phi(self, constant):
+        '''
+        set all phi_x values to constant
+        '''
+        phi_x = jnp.full_like(self.phi_x, constant, dtype = np.float64)
+        object.__setattr__(self, 'phi_x', phi_x)
+        return self
+
+    def _constant_momentum(self, constant):
+        '''
+        set all phi_x values to constant
+        '''
+        mom_x = jnp.full_like(self.mom_x, constant,  dtype = np.float64)
+        object.__setattr__(self, 'mom_x', mom_x)
         return self
    # --------------------------------------------------
 
