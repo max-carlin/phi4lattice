@@ -1,0 +1,18 @@
+name: CI
+
+on:
+    push:
+    pull_request:
+        branches: [ main ]
+
+jobs:
+    run_style_check:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: mamba-org/setup-micromamba@v2
+            with:
+                environment-file: env.yml
+                init-shell: bash
+            - run: pycodestyle $(git ls-files '*.py')
+              shell: bash -l {0}
