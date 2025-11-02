@@ -3,7 +3,11 @@ import jax.numpy as jnp
 from functools import partial
 
 @partial(jax.jit, static_argnums=(3,4,5))
-def action_core(phi_x, lam, kappa,  D, shift, spatial_axes):
+def action_core(phi_x: jnp.ndarray,
+                lam: float, kappa: float,
+                D: int,
+                shift: int,
+                spatial_axes: tuple):
     '''
     Pure JIT’d kernel
     calculate and return action and kinetic energy
