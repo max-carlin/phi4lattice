@@ -1,3 +1,18 @@
+'''Molecular Dynamics trajectory and acceptance for Hybrid Monte Carlo.
+
+This script contains the core functions used to advance the scalar field
+through one HMC trajectory and to decide whether to accept the resulting
+update.
+
+It contains the following custom functions:
+    * HMC_core :
+        Determines whether to accept or reject a field based
+        on the energy differences.
+    * MD_traj
+        Runs one full molecular dynamics trajectory by refreshing the
+        momentum field, evolving the system with a numerical integrator,
+        and optionally performing an acceptance test.
+'''
 import jax
 from jax import lax
 import numpy as np
@@ -16,7 +31,39 @@ def HMC_core(H_old, H_prime,
              phi_old, phi_prime,
              mom_old, mom_prime,
              key):
-    '''mask and update'''
+    '''Accept or reject a proposed HMC trajectory.
+
+    The function computes the energy difference
+    Delta H = H_{prime} - H_{old} and accepts the proposed state
+    when Delta H < 0 or when the random probability is less than exp(-Delta H).
+    The random number is drawn from a uniform distribution using 'key'.
+
+    Parameters
+    ----------
+    H_old :  jnp.ndarray
+        Hamiltonian before run through MD_traj.
+    H_prime : jnp.ndarray
+        Hamiltonian after the update. Same shap as H_old.
+    phi_old : jnp.ndarray
+        Current field configuration.
+    phi_prime : jnp.ndarry
+        Field configuration after the update.
+    mom_old : jnp.ndarray
+        Current omoentum field.
+    mom_prime : jnp.ndarray
+        Momentum field after the update.
+
+    Returns
+    -------
+    mom_accepted : jnp.ndarray
+        Momentum field after applying accept / reject.
+    phi_accepted : jnp.ndarray
+        Field after applying accept / reject.
+    accept_mask : jnp.ndarray
+        Boolean array with what values were accepted.
+    delta_H : jnp.ndarray
+        The energy difference.
+    '''
 
     delta_H = H_prime - H_old  # H_final - H_initial
     # make acceptor mask
@@ -43,6 +90,32 @@ def MD_traj(state,
             key_pair,
             params: HMCParams,
             measure_fns=None):
+    '''Run one molecular dynamics (MD) trajectory step.
+
+    This function takes the current field and momentum values, refreshes
+    the momentum from a normal distribution, and evolves the system forward
+    with a numerical (leapfrog or omelyan) integrator. Optionally applies
+    HMC_core to accept / reject the new state.
+
+    Parameters
+    ----------
+    state : tuple
+        The current (momentum, field) state of the system.
+    key_pair : tuple
+        Random number generator keys.
+    params : HMCParams
+        Holds all integration and lattice geometry settings.
+    measure_fns : dict, optional
+        Functions to gather measurements on the final field.
+
+    Returns
+    -------
+    (mom_fx, phi_fx) : tuple
+        The updated momentum and field after one trajectory.
+    out : dict
+        Extra outputs such as acceptance info, Hamiltonian history, or
+        measurement results.
+    '''
     mom_old, phi_old = state
     # one key for momentum refresh, one for metropolis
     mom_key, r_key = key_pair
@@ -56,13 +129,21 @@ def MD_traj(state,
                                    mu=0,
                                    sigma=1)
 
-    if params.integrator == 'omelyan':
-        print("INTEGRATING")
+    # Placeholder so output is defined
+    output = None
+
+    # .lower() puts the string all in lower case
+    if params.integrator[:7].lower() == 'omelyan':
         output = omelyan_core_scan(mom_refreshed, phi_old, params)
-    if params.integrator == 'leap':
+    # For these checks, any variation of leapfrog and omelyan work
+    if params.integrator[:4].lower() == 'leap':
         output = leapfrog_core_scan(mom_refreshed, phi_old, params)
 
-    print('OUTPUT', output)
+    if output is None:
+        raise ValueError(
+            f"Unknown integrator {params.integrator}. "
+            "Expected 'omelyan' or 'leap'"
+        )
 
     mom_fx = output[0]
     phi_fx = output[1]
