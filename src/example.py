@@ -32,7 +32,7 @@ lat.HMC(N_steps,
         xi=xi,
         N_trajectories=N_therm,
         measure_fns=measure_fns,
-        integrator='leap')
+        integrator='leapfrog')
 print('done')
 
 # plot magnetization history
