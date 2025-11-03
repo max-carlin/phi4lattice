@@ -14,7 +14,6 @@ It contains the following custom functions:
         and optionally performing an acceptance test.
 '''
 import jax
-from jax import lax
 import numpy as np
 import jax.numpy as jnp
 import jax.random as random
