@@ -58,7 +58,20 @@ class TestHMC(unittest.TestCase):
         self.assertTrue(jnp.all(mom_acc == self.mom_old))
         self.assertTrue(jnp.all(mask == 0))
 
+    def test_MD_traj_bad_integrator_raises(self):
+        
+        parameters = params.HMCParams(
+            integrator="fakes_integrator",
+            lam=1.0, kappa=1.0, D=2, shift=None,
+            spatial_axes=(1,), lat_shape=(2, 2),
+            N_steps = 10, xi = 0.1931833, eps = 0.085,
+            metropolis=True, record_H=False
+        )
+        state = (self.mom_old, self.phi_old)
+        key_pair = (self.key, self.key)
 
+        self.assertRaises(ValueError, hmc.MD_traj,
+                          state, key_pair, parameters)
 
 
 if __name__ == '__main__': 
