@@ -63,6 +63,13 @@ def HMC_core(H_old, H_prime,
     delta_H : jnp.ndarray
         The energy difference.
     '''
+    # First, we want to catch possible ValueErrors
+    if H_old.shape != H_prime.shape:
+        raise ValueError("Hamiltonians have different shapes.")
+    if phi_old.shape != phi_prime.shape:
+        raise ValueError("Fields have different shapes.")
+    if mom_old.shape != mom_prime.shape:
+        raise ValueError("Momentum fields have different shapes.")
 
     delta_H = H_prime - H_old  # H_final - H_initial
     # make acceptor mask

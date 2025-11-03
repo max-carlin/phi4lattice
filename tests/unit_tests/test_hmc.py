@@ -34,6 +34,16 @@ class TestHMC(unittest.TestCase):
         self.assertEqual(phi_accepted.shape, self.phi_old.shape)
         self.assertEqual(mom_accepted.shape, self.mom_old.shape)
 
+    def test_different_shapes(self):
+        wrong_phi_old = jnp.ones((2, 4))
+        
+        self.assertRaises(ValueError, hmc.HMC_core,
+                          self.H_old, self.H_prime,
+                          wrong_phi_old, self.phi_prime,
+                          self.mom_old, self.mom_prime,
+                          self.key)
+
+
 
 
 if __name__ == '__main__': 
