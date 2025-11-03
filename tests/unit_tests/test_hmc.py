@@ -1,7 +1,7 @@
 import sys
 sys.path.append('src')
 import unittest
-from src import hmc
+from src import hmc, params
 import jax.numpy as jnp
 import jax.random as random
 
@@ -15,7 +15,7 @@ class TestHMC(unittest.TestCase):
         self.mom_old = jnp.zeros((3, 4))
         self.mom_prime = jnp.full((3, 4), 9.0)
     
-    def test_accept_lower_H(self): 
+    def test_HMC_core_accept_lower_H(self): 
         # Should always accept everything when H_prime < H_old
         result = hmc.HMC_core(self.H_old,
                               self.H_prime,
@@ -34,14 +34,29 @@ class TestHMC(unittest.TestCase):
         self.assertEqual(phi_accepted.shape, self.phi_old.shape)
         self.assertEqual(mom_accepted.shape, self.mom_old.shape)
 
-    def test_different_shapes(self):
+    def test_HMC_core_different_shapes(self):
         wrong_phi_old = jnp.ones((2, 4))
-        
+
         self.assertRaises(ValueError, hmc.HMC_core,
                           self.H_old, self.H_prime,
                           wrong_phi_old, self.phi_prime,
                           self.mom_old, self.mom_prime,
                           self.key)
+
+    def test_HMC_core_reject_when_higher(self):
+        # If hprime is huge, we should reject everything
+        H_prime_big = self.H_old + 100.0
+        mom_acc, phi_acc, mask, delta_H = hmc.HMC_core(
+            self.H_old, H_prime_big,
+            self.phi_old, self.phi_prime,
+            self.mom_old, self.mom_prime,
+            self.key
+        )
+
+
+        self.assertTrue(jnp.all(phi_acc == self.phi_old))
+        self.assertTrue(jnp.all(mom_acc == self.mom_old))
+        self.assertTrue(jnp.all(mask == 0))
 
 
 
