@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class HMCParams:
-    '''Dataclass that takes parameters from the lattice geometry.
-    ''' 
+    '''
+    Dataclass that takes parameters from the lattice geometry.
+    '''
     lam: float
     kappa: float
     D: int
@@ -16,4 +18,3 @@ class HMCParams:
     metropolis: bool
     record_H: bool
     lat_shape: tuple
-    
