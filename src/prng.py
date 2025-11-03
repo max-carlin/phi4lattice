@@ -4,11 +4,13 @@ import jax.random as random
 from functools import partial
 import numpy as np
 
+
 def make_keys(N, s=0, randomize_keys=True):
     '''
     prepare keys for sampling, return array of keys
     randomizes seed by default
-    if randomize = False, seed is not randomized for traceability/reproducibility
+    if randomize = False, seed is not
+         randomized for traceability/reproducibility
     returns array of N jax PRNGkeys
     has to be host side because of np.random.randint
     '''
@@ -23,8 +25,8 @@ def make_keys(N, s=0, randomize_keys=True):
     subkeys = random.split(master, N)
     return master, subkeys
 
-def init_fields(lat_shape, seed, mom_seed, n_keys, mu, sigma, D):
 
+def init_fields(lat_shape, seed, mom_seed, n_keys, mu, sigma, D):
     master_key = random.PRNGKey(seed)
     keys = random.split(master_key, n_keys)
     rng = partial(random.normal, shape=lat_shape, dtype=jnp.float64)
@@ -38,7 +40,8 @@ def init_fields(lat_shape, seed, mom_seed, n_keys, mu, sigma, D):
     shift = phi_x.ndim - D
     return phi_x, mom_x, spatial_axes, shift
 
-def randomize_core(keys,lat_shape, mu, sigma):
+
+def randomize_core(keys, lat_shape, mu, sigma):
     """
     Pure JIT’d kernel
     given N keys, draws N phi-fields.
