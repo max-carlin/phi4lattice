@@ -20,7 +20,7 @@ import jax.random as random
 from .action import action_core
 from .integrators import omelyan_core_scan, leapfrog_core_scan
 from .integrators import hamiltonian_kinetic_core
-from .prng import make_keys, randomize_core
+from .prng import make_keys, randomize_normal_core
 from .params import HMCParams
 
 
@@ -130,10 +130,10 @@ def MD_traj(state,
     # Set up integrator params
     # 1) refresh momentum field at the start of each trajectory
     mom_master_key, mom_keys = make_keys(mom_old.shape[0], mom_key)
-    mom_refreshed = randomize_core(mom_keys,
-                                   params.lat_shape,
-                                   mu=0,
-                                   sigma=1)
+    mom_refreshed = randomize_normal_core(mom_keys,
+                                          params.lat_shape,
+                                          mu=0,
+                                          sigma=1)
 
     # Placeholder so output is defined
     output = None

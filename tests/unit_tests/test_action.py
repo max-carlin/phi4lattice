@@ -385,7 +385,7 @@ class TestMagnetization(unittest.TestCase):
                               n_keys=n_fields)
 
     def test_zero_field(self):
-        self.lat._constant_phi(0.0)
+        self.lat.constant_phi(0.0)
         phi_x = self.lat.phi_x
         m = magnetization(phi_x, self.D)
         m_manual = jnp.zeros_like(m)
@@ -393,7 +393,7 @@ class TestMagnetization(unittest.TestCase):
 
     def test_constant_field(self):
         c = random_basic.uniform(-10.0, 10.0)
-        self.lat._constant_phi(c)
+        self.lat.constant_phi(c)
         phi_x = self.lat.phi_x
         V = self.lat.V
         m = magnetization(phi_x, self.D)

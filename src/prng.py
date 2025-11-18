@@ -38,11 +38,11 @@ def make_keys(N: int,   # number of keys to make (batch size)
     return master, subkeys
 
 
-def _randomize_core(keys: jnp.ndarray,
-                   lat_shape: tuple[int, ...],
-                   mu: float = None,
-                   sigma: float = None
-                   ) -> jnp.ndarray:
+def randomize_normal_core(keys: jnp.ndarray,
+                           lat_shape: tuple[int, ...],
+                           mu: float = None,
+                           sigma: float = None
+                           ) -> jnp.ndarray:
     """
     Given N keys, draws a batch of N, independent,
     random fields from a normal distribution

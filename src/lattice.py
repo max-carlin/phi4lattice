@@ -50,18 +50,13 @@ t
     # defining param defaults and types
     # of user-settable parameters
     # using field() for those set in post_init
+
+    # params w/ default vals can't go first in dataclass?
     # -----------------------------------------------
 
-    # default prng (distribution) parameters --------
-    mu: float = 0.0
-    sigma: float = 0.1
-    seed: int = 0
-    n_keys: int = 1
-    mom_seed: int = 1
-
     # Physical Parameters ---------------------------
-    kappa: float = 0.25
-    lam: float = 0.1
+    kappa: float
+    lam: float
 
     # Field Geometry --------------------------------
     # array of spacing between lattice nodes in each D
@@ -81,6 +76,17 @@ t
     spatial_axes: tuple = field(init=False)
     shift: int = field(init=False)
     # ===============================================
+
+    # default prng (distribution) parameters --------
+    mu: float = 0.0
+    sigma: float = 0.1
+    seed: int = 0
+    n_keys: int = 1
+    mom_seed: int = 1
+
+
+
+
 
     # ===============================================
     # Post init to compute derived quantities
@@ -127,15 +133,23 @@ t
         object.__setattr__(self, 'H_history', None)
 
     # --------- Field Initialization Methods ---------
+    @staticmethod
+    def _rand_phi_core(keys,
+                       lat_shape,
+                       mu,
+                       sigma,
+                       dist):
+        '''
+        wrapper for prng randomization cores
+        '''
+        if dist == 'normal':
+            return prng.randomize_normal_core(keys,
+                                               lat_shape,
+                                               mu,
+                                               sigma)
+        if dist == 'uniform':
+            return prng.randomize_uniform_core(keys, lat_shape)
 
-    def _rand_phi_core(keys, lat_shape, mu, sigma):
-        '''
-        wrapper for prng._randomize_core
-        '''
-        return prng._randomize_core(keys,
-                                    lat_shape,
-                                     mu,
-                                     sigma)
 
     def randomize_phi(self,
                       N,
@@ -154,13 +168,13 @@ t
         object.__setattr__(self, "keys", keys)
 
         # selecting dist type
-        if dist == 'normal':
-            rand_phi_xs = self._rand_phi_core(keys,
-                                              self.lat_shape,
-                                              self.mu,
-                                              self.sigma)
-        elif dist == 'uniform':
-            rand_phi_xs = self._randomize_uniform_core(keys, self.lat_shape)
+        rand_phi_xs = self._rand_phi_core(keys,
+                                          self.lat_shape,
+                                          self.mu,
+                                          self.sigma,
+                                          dist)
+        # elif dist == 'uniform':
+        #     rand_phi_xs = self._randomize_uniform_core(keys, self.lat_shape)
 
         object.__setattr__(self, 'phi_x', rand_phi_xs)
 
