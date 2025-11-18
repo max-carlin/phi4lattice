@@ -17,50 +17,57 @@ jax.config.update("jax_enable_x64", True)  # 64 bit
 @dataclass(frozen=True)
 class Phi4Lattice:
     '''Core class to handle and create our lattice.
-
+t
     - Handles geometry, initialization
+
+    Dataclass that takes parameters from the lattice geometry.
+
+
+    Note on why dataclass and why frozen=True:
+        JIT compilation is used heavily in this project for performance.
+
+        data class auto-generates init, repr, eq, etc. methods.
+        frozen=True makes it immutable and hashable:: __hash__ method is generated.
+        Meaning once created, its attributes cannot be changed.
+        This lets JAX use instances of this class as part of JIT-compiled functions
+        because JAX uses static inputs to simplify JIT-compiled functions
+        when caching and optimizing computations.
+
+        "static" here means the value does not change between calls
+
+        immutable -> hashable -> safe for static arguments in JAX JIT compilation.
+
+        frozen should give value equality semantics,
+        meaning two instances with the same attribute
+        values are considered equal.
+
+        multiple calls to functions with the same HMCParams instance
+        should only compile once and reuse the compiled version when
+        using JAX's JIT compilation.
     '''
-    a_array: jnp.ndarray
-    L_array: jnp.ndarray
-    kappa: float
-    lam: float
-    mu: float = 0.0
-    sigma: float = 0.1
-    seed: int = 0
-    n_keys: int = 1
-    mom_seed: int = 1
+    # Physical Parameters
+    kappa: float = 0.25
+    lam: float = 0.1
 
     # Field Geometry
-    D: int = field(init=False)
-    V: int = field(init=False)
-    lat_shape: jnp.ndarray = field(init=False)
+    a_array: jnp.ndarray  # array of spacing between lattice nodes in each D
+    L_array: jnp.ndarray  # array of lattice lengths in each D
+    D: int = field(init=False) # number of spatial dimensions
+    V: int = field(init=False) # total lattice volume
+    lat_shape: jnp.ndarray = field(init=False) # shape of the lattice in each D
 
     phi_x: jnp.ndarray = field(init=False)
     mom_x: jnp.ndarray = field(init=False)
     spatial_axes: tuple = field(init=False)
     shift: int = field(init=False)
 
-    # def __post_init__(self):
-    #     D = len(self.L_array)
-    #     V = jnp.prod(self.L_array)
-    #     lat_shape = tuple((self.L_array // self.a_array).tolist())
-    #     object.__setattr__(self, "D", D)
-    #     object.__setattr__(self, "V", V)
-    #     object.__setattr__(self, "lat_shape", lat_shape)
+    # default prng (distribution) parameters
+    mu: float = 0.0
+    sigma: float = 0.1
+    seed: int = 0
+    n_keys: int = 1
+    mom_seed: int = 1
 
-    #    phi_x, mom_x, spatial_axes, shift = init_fields(lat_shape,
-    #                                                    self.seed,
-    #                                                    self.mom_seed,
-    #                                                    self.n_keys,
-    #                                                    self.mu,
-    #                                                    self.sigma,
-    #                                                    D)
-    #     object.__setattr__(self, "phi_x", phi_x)
-    #     object.__setattr__(self, "mom_x", mom_x)
-    #     object.__setattr__(self, "spatial_axes", spatial_axes)
-    #     object.__setattr__(self, "shift", shift)
-    #     object.__setattr__(self, "master_key", random.PRNGKey(self.seed))
-    #     object.__setattr__(self, 'H_history', None)
     def __post_init__(self):
         '''
         initialization of geometric and field quantities (single draw of phi4)
