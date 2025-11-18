@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from .lattice import Phi4Lattice
+from src.lattice import Phi4Lattice
 import matplotlib.pyplot as plt
 import numpy as np
 
