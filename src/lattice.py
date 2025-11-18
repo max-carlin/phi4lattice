@@ -10,7 +10,8 @@ from typing import Dict
 from .prng import init_fields
 from .prng import make_keys
 from .hmc import MD_traj
-from .params import HMCParams
+# from .params import HMCParams
+import src.prng as prng
 jax.config.update("jax_enable_x64", True)  # 64 bit
 
 
@@ -45,32 +46,47 @@ t
         should only compile once and reuse the compiled version when
         using JAX's JIT compilation.
     '''
-    # Physical Parameters
-    kappa: float = 0.25
-    lam: float = 0.1
+    # ===============================================
+    # defining param defaults and types
+    # of user-settable parameters
+    # using field() for those set in post_init
+    # -----------------------------------------------
 
-    # Field Geometry
-    a_array: jnp.ndarray  # array of spacing between lattice nodes in each D
-    L_array: jnp.ndarray  # array of lattice lengths in each D
-    D: int = field(init=False) # number of spatial dimensions
-    V: int = field(init=False) # total lattice volume
-    lat_shape: jnp.ndarray = field(init=False) # shape of the lattice in each D
-
-    phi_x: jnp.ndarray = field(init=False)
-    mom_x: jnp.ndarray = field(init=False)
-    spatial_axes: tuple = field(init=False)
-    shift: int = field(init=False)
-
-    # default prng (distribution) parameters
+    # default prng (distribution) parameters --------
     mu: float = 0.0
     sigma: float = 0.1
     seed: int = 0
     n_keys: int = 1
     mom_seed: int = 1
 
+    # Physical Parameters ---------------------------
+    kappa: float = 0.25
+    lam: float = 0.1
+
+    # Field Geometry --------------------------------
+    # array of spacing between lattice nodes in each D
+    a_array: jnp.ndarray
+    # array of lattice lengths in each D
+    L_array: jnp.ndarray
+    # number of spatial dimensions
+    D: int = field(init=False)
+    # total lattice volume
+    V: int = field(init=False)
+    # shape of the lattice in each D
+    lat_shape: jnp.ndarray = field(init=False) 
+    
+    # Field Configurations --------------------------
+    phi_x: jnp.ndarray = field(init=False)
+    mom_x: jnp.ndarray = field(init=False)
+    spatial_axes: tuple = field(init=False)
+    shift: int = field(init=False)
+    # ===============================================
+
+    # ===============================================
+    # Post init to compute derived quantities
     def __post_init__(self):
         '''
-        initialization of geometric and field quantities (single draw of phi4)
+        initialization of geometric and field quantities
         '''
         # --- Sec1
         # geom
@@ -111,41 +127,15 @@ t
         object.__setattr__(self, 'H_history', None)
 
     # --------- Field Initialization Methods ---------
-    @staticmethod
-    @partial(jax.jit, static_argnums=1)
-    # issue with lat_shape is same as D in _magnetization_core
-    # holding static on lat_shape/D seems to fix
-    def _randomize_core(keys,
-                        lat_shape,
-                        mu,
-                        sigma):
-        """
-        Pure JIT’d kernel
-        given N keys, draws N phi-fields.
-        lat_shape is static.
-        """
-        # vectorized normal draws
-        rng = partial(random.normal, shape=lat_shape, dtype=jnp.float64)
-        return jax.vmap(rng)(keys)
 
-    @staticmethod
-    @partial(jax.jit, static_argnums=1)
-    # trying to reproduce fig 2.2
-    def _randomize_uniform_core(keys, lat_shape):
-        rng = partial(random.uniform,
-                      shape=lat_shape,
-                      dtype=jnp.float64,
-                      minval=-1.0,
-                      maxval=1.0)
-        return jax.vmap(rng)(keys)
-
-    @staticmethod
-    @partial(jax.jit, static_argnums=1)
     def _rand_phi_core(keys, lat_shape, mu, sigma):
-        return mu + sigma * Phi4Lattice._randomize_core(keys,
-                                                        lat_shape,
-                                                        mu,
-                                                        sigma)
+        '''
+        wrapper for prng._randomize_core
+        '''
+        return prng._randomize_core(keys,
+                                    lat_shape,
+                                     mu,
+                                     sigma)
 
     def randomize_phi(self,
                       N,
@@ -158,6 +148,8 @@ t
         mutate self.phi_x on the Python side.
         """
         master_key, keys = make_keys(N, s, randomize_keys)
+
+        # update master_key and keys
         object.__setattr__(self, "master_key", master_key)
         object.__setattr__(self, "keys", keys)
 
@@ -184,8 +176,9 @@ t
         # shift will = 0 for single field; 1 for batch
         shift = self.phi_x.ndim - self.D
 
+        # update spatial_axes and shift
         object.__setattr__(self, 'spatial_axes',
-                           tuple(int(x)for x in spatial_axes))
+                           tuple(int(x) for x in spatial_axes))
         object.__setattr__(self, 'shift', shift)
         return self
 
@@ -198,7 +191,7 @@ t
         return self
 
     # use for constant fields for simple magnetization expectations
-    def _constant_phi(self, constant):
+    def constant_phi(self, constant):
         '''
         set all phi_x values to constant
         '''
@@ -206,7 +199,7 @@ t
         object.__setattr__(self, 'phi_x', phi_x)
         return self
 
-    def _constant_momentum(self, constant):
+    def constant_momentum(self, constant):
         '''
         set all phi_x values to constant
         '''

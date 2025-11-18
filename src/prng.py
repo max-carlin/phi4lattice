@@ -38,10 +38,11 @@ def make_keys(N: int,   # number of keys to make (batch size)
     return master, subkeys
 
 
-def randomize_core(keys: jnp.ndarray,
+def _randomize_core(keys: jnp.ndarray,
                    lat_shape: tuple[int, ...],
                    mu: float = None,
-                   sigma: float = None) -> jnp.ndarray:
+                   sigma: float = None
+                   ) -> jnp.ndarray:
     """
     Given N keys, draws a batch of N, independent,
     random fields from a normal distribution
@@ -59,6 +60,22 @@ def randomize_core(keys: jnp.ndarray,
     # else draw from normal with mean mu and std sigma
     elif mu is not None and sigma is not None:
         return mu + sigma * jax.vmap(rng)(keys)
+
+
+def randomize_uniform_core(keys: jnp.ndarray,
+                            lat_shape: tuple[int, ...]
+                            ) -> jnp.ndarray:
+    '''
+    Given N keys, draws a batch of N, independent,
+    random fields from a uniform distribution
+    over the interval [-1, 1].
+    Returns array of shape (N, *lat_shape)'''
+    rng = partial(random.uniform,
+                    shape=lat_shape,
+                    dtype=jnp.float64,
+                    minval=-1.0,
+                    maxval=1.0)
+    return jax.vmap(rng)(keys)
 
 
 # I (sevio) don't think we need this function
