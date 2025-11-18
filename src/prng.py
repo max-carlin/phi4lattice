@@ -39,10 +39,10 @@ def make_keys(N: int,   # number of keys to make (batch size)
 
 
 def randomize_normal_core(keys: jnp.ndarray,
-                           lat_shape: tuple[int, ...],
-                           mu: float = None,
-                           sigma: float = None
-                           ) -> jnp.ndarray:
+                          lat_shape: tuple[int, ...],
+                          mu: float = None,
+                          sigma: float = None
+                          ) -> jnp.ndarray:
     """
     Given N keys, draws a batch of N, independent,
     random fields from a normal distribution
@@ -63,18 +63,18 @@ def randomize_normal_core(keys: jnp.ndarray,
 
 
 def randomize_uniform_core(keys: jnp.ndarray,
-                            lat_shape: tuple[int, ...]
-                            ) -> jnp.ndarray:
+                           lat_shape: tuple[int, ...]
+                           ) -> jnp.ndarray:
     '''
     Given N keys, draws a batch of N, independent,
     random fields from a uniform distribution
     over the interval [-1, 1].
     Returns array of shape (N, *lat_shape)'''
     rng = partial(random.uniform,
-                    shape=lat_shape,
-                    dtype=jnp.float64,
-                    minval=-1.0,
-                    maxval=1.0)
+                  shape=lat_shape,
+                  dtype=jnp.float64,
+                  minval=-1.0,
+                  maxval=1.0)
     return jax.vmap(rng)(keys)
 
 

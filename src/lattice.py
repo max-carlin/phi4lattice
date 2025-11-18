@@ -28,15 +28,16 @@ t
         JIT compilation is used heavily in this project for performance.
 
         data class auto-generates init, repr, eq, etc. methods.
-        frozen=True makes it immutable and hashable:: __hash__ method is generated.
+        frozen=True makes it immutable and hashable:
+            __hash__ method is generated.
         Meaning once created, its attributes cannot be changed.
-        This lets JAX use instances of this class as part of JIT-compiled functions
-        because JAX uses static inputs to simplify JIT-compiled functions
-        when caching and optimizing computations.
+        This lets JAX use JIT-compiled functions
+            JAX uses static inputs to simplify JIT-compiled functions
+            when caching and optimizing computations.
 
         "static" here means the value does not change between calls
 
-        immutable -> hashable -> safe for static arguments in JAX JIT compilation.
+        immutable -> hashable -> safe for static arguments in JIT compilation.
 
         frozen should give value equality semantics,
         meaning two instances with the same attribute
@@ -68,14 +69,13 @@ t
     # total lattice volume
     V: int = field(init=False)
     # shape of the lattice in each D
-    lat_shape: jnp.ndarray = field(init=False) 
-    
+    lat_shape: jnp.ndarray = field(init=False)
+
     # Field Configurations --------------------------
     phi_x: jnp.ndarray = field(init=False)
     mom_x: jnp.ndarray = field(init=False)
     spatial_axes: tuple = field(init=False)
     shift: int = field(init=False)
-    # ===============================================
 
     # default prng (distribution) parameters --------
     mu: float = 0.0
@@ -84,10 +84,7 @@ t
     n_keys: int = 1
     mom_seed: int = 1
 
-
-
-
-
+    # ===============================================
     # ===============================================
     # Post init to compute derived quantities
     def __post_init__(self):
@@ -144,12 +141,11 @@ t
         '''
         if dist == 'normal':
             return prng.randomize_normal_core(keys,
-                                               lat_shape,
-                                               mu,
-                                               sigma)
+                                              lat_shape,
+                                              mu,
+                                              sigma)
         if dist == 'uniform':
             return prng.randomize_uniform_core(keys, lat_shape)
-
 
     def randomize_phi(self,
                       N,

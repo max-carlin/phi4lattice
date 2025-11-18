@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 # I actually don't see a reason to have this file.
 # hmc specific paramters are just:
 #    lam, kappa, xi, eps, N_steps, integrator, metropolis, & record_H
@@ -11,14 +12,13 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class HMCParams:
     '''
-
     '''
     # lambda is the coupling constant
     #   also known as the quartic (self) interaction strength
     lam: float
     # kappa is the hopping parameter
     #   relates to the mass term in the action
-    kappa: float 
+    kappa: float
     D: int  # number of spatial dimensions
 
     # if batched, shift
