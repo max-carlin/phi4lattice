@@ -10,7 +10,7 @@ from typing import Dict
 from .prng import init_fields
 from .prng import make_keys
 from .hmc import MD_traj
-# from .params import HMCParams
+from .params import HMCParams
 import src.prng as prng
 jax.config.update("jax_enable_x64", True)  # 64 bit
 
@@ -48,13 +48,12 @@ t
         using JAX's JIT compilation.
     '''
     # ===============================================
-    # defining param defaults and types
+    # ------- defining param defaults and types -----
+    # ===============================================
     # of user-settable parameters
     # using field() for those set in post_init
-
     # params w/ default vals can't go first in dataclass?
     # -----------------------------------------------
-
     # Physical Parameters ---------------------------
     kappa: float
     lam: float
@@ -85,6 +84,7 @@ t
     mom_seed: int = 1
 
     # ===============================================
+    # ------ post init computations -------
     # ===============================================
     # Post init to compute derived quantities
     def __post_init__(self):
@@ -129,7 +129,10 @@ t
 
         object.__setattr__(self, 'H_history', None)
 
-    # --------- Field Initialization Methods ---------
+    # ===============================================
+    # --------- Field Initialization Methods --------
+    # ===============================================
+    # ----- phi field methods ------
     @staticmethod
     def _rand_phi_core(keys,
                        lat_shape,
@@ -192,6 +195,15 @@ t
         object.__setattr__(self, 'shift', shift)
         return self
 
+    # use for constant fields for simple magnetization expectations
+    def constant_phi(self, constant):
+        '''
+        set all phi_x values to constant
+        '''
+        phi_x = jnp.full_like(self.phi_x, constant, dtype=np.float64)
+        object.__setattr__(self, 'phi_x', phi_x)
+    
+    # --- mom field methods -------
     def randomize_mom(self, N, s=1, randomize_keys=True):
         mom_master_key, mom_keys = make_keys(N, s, randomize_keys)
         object.__setattr__(self, "mom_master_key", mom_master_key)
@@ -200,13 +212,7 @@ t
         object.__setattr__(self, 'mom_x', mom_xs)
         return self
 
-    # use for constant fields for simple magnetization expectations
-    def constant_phi(self, constant):
-        '''
-        set all phi_x values to constant
-        '''
-        phi_x = jnp.full_like(self.phi_x, constant, dtype=np.float64)
-        object.__setattr__(self, 'phi_x', phi_x)
+
         return self
 
     def constant_momentum(self, constant):
@@ -216,8 +222,10 @@ t
         mom_x = jnp.full_like(self.mom_x, constant, dtype=np.float64)
         object.__setattr__(self, 'mom_x', mom_x)
         return self
-    # --------------------------------------------------
 
+    # ===============================================
+    # ------------- HMC field evolution -------------
+    # ===============================================
     def _split_keys(self, n):
         keys = random.split(self.master_key, n + 1)
         master_key, subkeys = keys[0], keys[1:]
