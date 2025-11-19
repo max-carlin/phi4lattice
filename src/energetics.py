@@ -1,8 +1,11 @@
 import jax
 import jax.numpy as jnp
 from functools import partial
+from .params import LatticeGeometry
+from .params import Phi4Params
 
 
+@staticmethod
 @partial(jax.jit, static_argnums=(3, 4, 5))
 def action_core(phi_x: jnp.ndarray,
                 lam: float, kappa: float,
@@ -42,6 +45,7 @@ def action_core(phi_x: jnp.ndarray,
     return S, K, W
 
 
+@staticmethod
 @partial(jax.jit, static_argnums=(1, 2, 3, 4, 5))
 def grad_action_core(phi_x, lam, kappa, D, shift, spatial_axes):
     # total_action returns a scalar for jax.grad
@@ -60,3 +64,24 @@ def grad_action(self, phi_x, lam, kappa, D, shift, spatial_axes):
     if phi_x is None:
         phi_x = phi_x
     return grad_action_core(phi_x, lam, kappa, D, shift, spatial_axes)
+
+
+@staticmethod
+@partial(jax.jit, static_argnums=1)
+def hamiltonian_kinetic_core(mom_x, spatial_axes):
+    # 1/2∑_x p_x²
+    return (0.5 * (mom_x**2).sum(axis=spatial_axes))
+
+
+def hamiltonian(phi_x: jnp.ndarray, mom_x: jnp.ndarray,
+                shift: int, spatial_axes: tuple[int],
+                model: Phi4Params,
+                geom: LatticeGeometry):
+    S, K, W = action_core(phi_x=phi_x,
+                          lam=model.lam,
+                          kappa=model.kappa,
+                          D=geom.D,
+                          shift=shift,
+                          spatial_axes=spatial_axes)
+    mom_term = hamiltonian_kinetic_core(mom_x, spatial_axes)
+    return mom_term + S

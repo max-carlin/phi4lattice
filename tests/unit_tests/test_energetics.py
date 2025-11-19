@@ -1,7 +1,6 @@
 import random as random_basic
 import unittest
-from src.action import action_core
-from src.action import grad_action_core
+import src.energetics as eng
 import sys
 import numpy as np
 import os
@@ -80,10 +79,10 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S, K, W = action_core(phi_x,
-                              lam, kappa,
-                              D, shift,
-                              spatial_axes)
+        S, K, W = eng.action_core(phi_x,
+                                  lam, kappa,
+                                  D, shift,
+                                  spatial_axes)
 
         # hand-checks
         # neighbors: each site has 2 in +x/-x and +y/-y
@@ -125,10 +124,10 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S, K, W = action_core(phi_x,
-                              lam, kappa,
-                              D, shift,
-                              spatial_axes)
+        S, K, W = eng.action_core(phi_x,
+                                  lam, kappa,
+                                  D, shift,
+                                  spatial_axes)
 
         # hand-checks
         total_sites = 1
@@ -168,10 +167,10 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S, K, W = action_core(phi_x,
-                              lam, kappa,
-                              D, shift,
-                              spatial_axes)
+        S, K, W = eng.action_core(phi_x,
+                                  lam, kappa,
+                                  D, shift,
+                                  spatial_axes)
 
         # hand-checks
         total_sites = 1
@@ -228,10 +227,10 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S, K, W = action_core(phi_x,
-                              lam, kappa,
-                              D, shift,
-                              spatial_axes)
+        S, K, W = eng.action_core(phi_x,
+                                  lam, kappa,
+                                  D, shift,
+                                  spatial_axes)
 
         self.assertIsInstance(S, jnp.ndarray)
         self.assertIsInstance(K, jnp.ndarray)
@@ -260,15 +259,15 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S_pos, K_pos, W_pos = action_core(phi_x,
-                                          lam, kappa,
-                                          D, shift,
-                                          spatial_axes)
+        S_pos, K_pos, W_pos = eng.action_core(phi_x,
+                                              lam, kappa,
+                                              D, shift,
+                                              spatial_axes)
 
-        S_neg, K_neg, W_neg = action_core(-phi_x,
-                                          lam, kappa,
-                                          D, shift,
-                                          spatial_axes)
+        S_neg, K_neg, W_neg = eng.action_core(phi_x,
+                                              lam, kappa,
+                                              D, shift,
+                                              spatial_axes)
         self.assertTrue(jnp.allclose(S_pos, S_neg, atol=1e-5))
         self.assertTrue(jnp.allclose(K_pos, K_neg, atol=1e-5))
         self.assertTrue(jnp.allclose(W_pos, W_neg, atol=1e-5))
@@ -294,10 +293,10 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S_orig, K_orig, W_orig = action_core(phi_x,
-                                             lam, kappa,
-                                             D, shift,
-                                             spatial_axes)
+        S_orig, K_orig, W_orig = eng.action_core(phi_x,
+                                                 lam, kappa,
+                                                 D, shift,
+                                                 spatial_axes)
 
         # shift by random amounts in each dimension
         shifts = []
@@ -311,10 +310,10 @@ class TestAction(unittest.TestCase):
                                  shift=total_shifts,
                                  axis=tuple(range(phi_x.ndim)))
 
-        S_shifted, K_shifted, W_shifted = action_core(phi_x_shifted,
-                                                      lam, kappa,
-                                                      D, shift,
-                                                      spatial_axes)
+        S_shifted, K_shifted, W_shifted = eng.action_core(phi_x_shifted,
+                                                          lam, kappa,
+                                                          D, shift,
+                                                          spatial_axes)
 
         self.assertTrue(jnp.allclose(S_orig, S_shifted, atol=1e-5))
         self.assertTrue(jnp.allclose(K_orig, K_shifted, atol=1e-5))
@@ -363,12 +362,12 @@ class TestGradAction(unittest.TestCase):
                                                      kappa,
                                                      D)
 
-        grad_S = grad_action_core(phi_x,
-                                  lam,
-                                  kappa,
-                                  D,
-                                  self.lat.shift,
-                                  self.lat.spatial_axes)
+        grad_S = eng.grad_action_core(phi_x,
+                                      lam,
+                                      kappa,
+                                      D,
+                                      self.lat.shift,
+                                      self.lat.spatial_axes)
         self.assertTrue(jnp.allclose(grad_S, grad_S_manual, atol=1e-5))
 
 

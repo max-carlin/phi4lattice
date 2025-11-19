@@ -17,9 +17,9 @@ import jax
 import numpy as np
 import jax.numpy as jnp
 import jax.random as random
-from .action import action_core
+from .energetics import action_core
 from .integrators import omelyan_core_scan, leapfrog_core_scan
-from .integrators import hamiltonian_kinetic_core
+from .energetics import hamiltonian_kinetic_core
 from .prng import make_keys, randomize_normal_core
 from .params import HMCParams
 

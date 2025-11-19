@@ -1,15 +1,13 @@
 import jax.numpy as jnp
 import jax
-from jax import jit  # use to translate to machine code for speed
 from jax import random
 from jax import lax
 from functools import partial
 import numpy as np
 from dataclasses import dataclass, field, replace
 from typing import Dict, Optional
-from .prng import init_fields
 from .prng import make_keys
-from .hmc import MD_traj
+import src.hmc as hmc
 import src.prng as prng
 import src.params as params
 jax.config.update("jax_enable_x64", True)  # 64 bit
@@ -308,7 +306,7 @@ class Phi4Lattice:
         def one_traj(state, key_pair):
             # one key pair = (mom_key, r_key)
             # one for mom refresh and one for metropolis test
-            return MD_traj(state, key_pair, cfg, measure_fns)
+            return hmc.MD_traj(state, key_pair, cfg, measure_fns)
 
         # need lambda key because lax.scan only takes
         # (carry, element) NOT params
@@ -326,13 +324,3 @@ class Phi4Lattice:
             object.__setattr__(self, 'measure_history', out_dict)
 
         return self
-
-    # @staticmethod
-    # @partial(jit, static_argnums=1)
-    # def _magnetization_core(phi_x, D):
-    #     '''
-    #     Pure JIT’d kernel
-    #     returns array of magnetizations for each field configuration in phi_x
-    #     '''
-    #     m_array = phi_x.sum(axis=tuple(range(1, D + 1)))
-    #     return m_array
