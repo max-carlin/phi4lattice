@@ -12,10 +12,12 @@ def hamiltonian_kinetic_core(mom_x, spatial_axes):
     # 1/2∑_x p_x²
     return (0.5 * (mom_x**2).sum(axis=spatial_axes))
 
+
 def hamiltonian(self):
     S, K, W = self.action_kinetic_W()
     mom_term = hamiltonian_kinetic_core(self.mom_x, self.spatial_axes)
     return mom_term + S
+
 
 def om_step(state, _, params):
     # Scan expects an x input along with carry/state even though xs=none
