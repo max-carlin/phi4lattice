@@ -7,11 +7,11 @@ from .params import Phi4Params
 
 @staticmethod
 @partial(jax.jit, static_argnums=(3, 4, 5))
-def action_core(phi_x: jnp.ndarray,
-                lam: float, kappa: float,
-                D: int,
-                shift: int,
-                spatial_axes: tuple):
+def phi4_action_core(phi_x: jnp.ndarray,
+                     lam: float, kappa: float,
+                     D: int,
+                     shift: int,
+                     spatial_axes: tuple):
     '''
     Pure JIT’d kernel
     calculate and return action and kinetic energy
@@ -74,13 +74,12 @@ def hamiltonian_kinetic_core(mom_x, spatial_axes):
 
 
 def hamiltonian(phi_x: jnp.ndarray, mom_x: jnp.ndarray,
-                shift: int, spatial_axes: tuple[int],
-                model: Phi4Params,
-                geom: LatticeGeometry):
+                lam: float, kappa: float,
+                D: int, shift: int, spatial_axes: tuple[int]):
     S, K, W = action_core(phi_x=phi_x,
-                          lam=model.lam,
-                          kappa=model.kappa,
-                          D=geom.D,
+                          lam=lam,
+                          kappa=kappa,
+                          D=D,
                           shift=shift,
                           spatial_axes=spatial_axes)
     mom_term = hamiltonian_kinetic_core(mom_x, spatial_axes)

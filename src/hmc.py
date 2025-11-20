@@ -21,7 +21,7 @@ from .energetics import action_core
 from .integrators import omelyan_core_scan, leapfrog_core_scan
 from .energetics import hamiltonian_kinetic_core
 from .prng import make_keys, randomize_normal_core
-from .params import HMCParams
+import .params
 
 
 @staticmethod
@@ -92,10 +92,46 @@ def HMC_core(H_old, H_prime,
     return mom_accepted, phi_accepted, mask, delta_H
 
 
+def HMC(cfg: params.HMCConfig,
+        model: params.Phi4Params,
+        N_steps, eps, xi,
+        integrator='omelyan',
+        s=0,
+        N_trajectories=1,
+        metropolis=True,
+        record_H=False,
+        verbose=False,
+        *, measure_fns=None):
+    '''
+    Updates fields via HMC method, metroplis acceptor
+    '''
+    master_key = random.PRNGKey(np.random.randint(0, 10**6))
+    # split master key into array of pairs
+    traj_keys = random.split(master_key, 2*N_trajectories)
+    # reshape for [(mom_key_1, r_key_1),...,(mom_key_N, r_key_N)]
+    traj_keys = traj_keys.reshape((N_trajectories, 2, 2))
+
+    # molecular dynamics
+    (mom_accepted,
+    phi_accepted), out_dict = lax.scan(MD_traj,
+                                       (self.mom_x,
+                                        self.phi_x),
+                                       xs=traj_keys,
+                                       length=N_trajectories)
+
+    object.__setattr__(self, 'mom_x', mom_accepted)
+    object.__setattr__(self, 'phi_x', phi_accepted)
+
+    if record_H or measure_fns or verbose:
+        object.__setattr__(self, 'measure_history', out_dict)
+    # if verbose:
+    #   object.__setattr__(self, 'measure_history', out_dict)
+    #   return self,
+    return self
+
+
 def MD_traj(state,
-            key_pair,
-            params: HMCParams,
-            measure_fns=None):
+            key_pair):
     '''Run one molecular dynamics (MD) trajectory step.
 
     This function takes the current field and momentum values, refreshes
@@ -131,7 +167,7 @@ def MD_traj(state,
     # 1) refresh momentum field at the start of each trajectory
     mom_master_key, mom_keys = make_keys(mom_old.shape[0], mom_key)
     mom_refreshed = randomize_normal_core(mom_keys,
-                                          params.lat_shape,
+                                          geom.lat_shape,
                                           mu=0,
                                           sigma=1)
 
@@ -140,7 +176,12 @@ def MD_traj(state,
 
     # .lower() puts the string all in lower case
     if params.integrator[:7].lower() == 'omelyan':
-        output = omelyan_core_scan(mom_refreshed, phi_old, params)
+        output = omelyan_core_scan(mom_refreshed, phi_old,
+                                   N_steps=cfg.N_steps,
+                                   lam=model.lam,
+                                   kappa=model.kappa,
+                                   D=geom.D,
+                                   shift)
     # For these checks, any variation of leapfrog and omelyan work
     if params.integrator[:4].lower() == 'leap':
         output = leapfrog_core_scan(mom_refreshed, phi_old, params)
