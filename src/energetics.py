@@ -1,15 +1,12 @@
 import jax
 import jax.numpy as jnp
 from functools import partial
-from .params import LatticeGeometry
-from .params import Phi4Params
+import params
 
 
-@staticmethod
-@partial(jax.jit, static_argnums=(3, 4, 5))
 def phi4_action_core(phi_x: jnp.ndarray,
-                     lam: float, kappa: float,
-                     D: int,
+                     model: params.Phi4Params,
+                     geom: params.LatticeGeometry,
                      shift: int,
                      spatial_axes: tuple):
     '''
@@ -26,8 +23,10 @@ def phi4_action_core(phi_x: jnp.ndarray,
         W: interaction term
         w/ shape = (N,) if phi_x is array of fields or scalar if single field
     '''
+    lam = model.lam
+    kappa = model.kappa
+    D = geom.D
     # Eq 1.1:  S += -2 κ φ_x ∑_μ φ_{x+μ}  +  φ_x^2  +  λ(φ_x^2-1)^2
-
     K = 0
     for mu in range(D):
         ax = mu + shift
@@ -44,43 +43,81 @@ def phi4_action_core(phi_x: jnp.ndarray,
     S = K + U
     return S, K, W
 
+def make_phi4_energy_fns(model: params.Phi4Params,
+                         geom: params.LatticeGeometry,
+                         shift: int,
+                         spatial_axes: tuple[int, ...]):
+    """
+    Build:
+      S_vals(phi): per-config action (shape () or (N,))
+      grad_S(phi): array same shape as phi, gradient of total action
+    """
 
-@staticmethod
-@partial(jax.jit, static_argnums=(1, 2, 3, 4, 5))
-def grad_action_core(phi_x, lam, kappa, D, shift, spatial_axes):
-    # total_action returns a scalar for jax.grad
-    def total_action(phi):
-        S_vals, _, _ = action_core(phi,
-                                   lam, kappa,
-                                   D, shift, spatial_axes)
-        return jnp.sum(S_vals)
-    # should compute grad(S) for both singular
-    # or batched configs w/out axis error
-    # that occured from other method
-    return jax.grad(total_action)(phi_x)
+    def S_Fn(phi_x):
+        S, _, _ = phi4_action_core(phi_x, model, geom, shift, spatial_axes)
+        return S
 
+    def total_action_Fn(phi_x):
+        # scalar required by jax.grad
+        return S_Fn(phi_x).sum()
 
-def grad_action(self, phi_x, lam, kappa, D, shift, spatial_axes):
-    if phi_x is None:
-        phi_x = phi_x
-    return grad_action_core(phi_x, lam, kappa, D, shift, spatial_axes)
+    grad_S_Fn = jax.grad(total_action_Fn)  # grad_S(phi) has same shape as phi
+    # use like grad_S(phi_x)
 
-
-@staticmethod
-@partial(jax.jit, static_argnums=1)
-def hamiltonian_kinetic_core(mom_x, spatial_axes):
-    # 1/2∑_x p_x²
-    return (0.5 * (mom_x**2).sum(axis=spatial_axes))
+    def H_kinetic_Fn(mom_x):
+        # 1/2∑_x p_x²
+        return (0.5 * (mom_x**2).sum(axis=spatial_axes))
+    
+    return S_Fn, grad_S_Fn, H_kinetic_Fn
 
 
 def hamiltonian(phi_x: jnp.ndarray, mom_x: jnp.ndarray,
-                lam: float, kappa: float,
-                D: int, shift: int, spatial_axes: tuple[int]):
-    S, K, W = action_core(phi_x=phi_x,
-                          lam=lam,
-                          kappa=kappa,
-                          D=D,
-                          shift=shift,
-                          spatial_axes=spatial_axes)
-    mom_term = hamiltonian_kinetic_core(mom_x, spatial_axes)
-    return mom_term + S
+                model: params.Phi4Params,
+                geom: params.LatticeGeometry,
+                shift: int,
+                spatial_axes: tuple[int, ...]):
+    S_fn, _, H_kinetic_fn = make_phi4_energy_fns(model, geom, shift, spatial_axes)
+    S = S_fn(phi_x)
+    K = H_kinetic_fn(mom_x)
+    return K + S
+
+
+# # @staticmethod
+# # @partial(jax.jit, static_argnums=(1, 2, 3, 4, 5))
+# def grad_action_core(phi_x, lam, kappa, D, shift, spatial_axes):
+#     # total_action returns a scalar for jax.grad
+#     def total_action(phi):
+#         S_vals, _, _ = action_core(phi,
+#                                    lam, kappa,
+#                                    D, shift, spatial_axes)
+#         return jnp.sum(S_vals)
+#     # should compute grad(S) for both singular
+#     # or batched configs w/out axis error
+#     # that occured from other method
+#     return jax.grad(total_action)(phi_x)
+
+
+# def grad_action(self, phi_x, lam, kappa, D, shift, spatial_axes):
+#     if phi_x is None:
+#         phi_x = phi_x
+#     return grad_action_core(phi_x, lam, kappa, D, shift, spatial_axes)
+
+
+# @staticmethod
+# @partial(jax.jit, static_argnums=1)
+# def hamiltonian_kinetic_core(mom_x, spatial_axes):
+#     # 1/2∑_x p_x²
+#     return (0.5 * (mom_x**2).sum(axis=spatial_axes))
+
+
+# def hamiltonian(phi_x: jnp.ndarray, mom_x: jnp.ndarray,
+#                 lam: float, kappa: float,
+#                 D: int, shift: int, spatial_axes: tuple[int]):
+#     S, K, W = action_core(phi_x=phi_x,
+#                           lam=lam,
+#                           kappa=kappa,
+#                           D=D,
+#                           shift=shift,
+#                           spatial_axes=spatial_axes)
+#     mom_term = hamiltonian_kinetic_core(mom_x, spatial_axes)
+#     return mom_term + S

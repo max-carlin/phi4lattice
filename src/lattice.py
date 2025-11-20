@@ -6,10 +6,12 @@ from functools import partial
 import numpy as np
 from dataclasses import dataclass, field, replace
 from typing import Dict, Optional
+from project.phi4lattice_folder.src.layout_utils import infer_layout
 from .prng import make_keys
 import src.hmc as hmc
 import src.prng as prng
 import src.params as params
+import src.energetics as eng
 jax.config.update("jax_enable_x64", True)  # 64 bit
 
 
@@ -56,6 +58,7 @@ class Phi4Lattice:
     phi_seed: int = 0
     n_keys: int = 1
     mom_seed: int = 1
+    
 
     # ===============================================
     # ------ post init computations -------
@@ -103,18 +106,10 @@ class Phi4Lattice:
         mom_x = jax.vmap(rng)(mom_keys)
         object.__setattr__(self, "mom_x", mom_x)
 
-        # determine if phi_x is singular or batched
-        # if phi_x.ndim == self.D then spatial axes are (0,...,D-1)
-        # if phi_x.ndim == self.D+1 then spatial axes are (1,...,D)
-        #     N, the number of field configs, becomes the dimension 0
-        # spatial_axes will give tup(rang(0,3))
-        #     = (0,1,2) for single 3D field
-        #  or = (1,2,3) for batched 3D fields
-        spatial_axes = tuple(range(self.phi_x.ndim - self.geom.D,
-                                   self.phi_x.ndim))
+        # infer layout
+        spatial_axes, shift = infer_layout(self.phi_x, self.geom.D)
         object.__setattr__(self, 'spatial_axes',
                            tuple(int(x) for x in spatial_axes))
-        shift = self.phi_x.ndim - self.geom.D
         object.__setattr__(self, 'shift', shift)
 
         # history initialization
@@ -125,11 +120,11 @@ class Phi4Lattice:
     # ===============================================
     # ----- phi field methods ------
     @staticmethod
-    def _rand_phi_core(keys,
-                       lat_shape,
-                       mu,
-                       sigma,
-                       dist):
+    def _rand_field_core(keys,
+                         lat_shape,
+                         mu = None,
+                         sigma = None,
+                         dist = 'normal') -> jnp.ndarray:
         '''
         wrapper for prng randomization cores
         '''
@@ -151,6 +146,7 @@ class Phi4Lattice:
         generate N new keys, call the JIT’d kernel, then
         mutate self.phi_x on the Python side.
         """
+
         master_key, keys = make_keys(N, s, randomize_keys)
 
         # update master_key and keys
@@ -163,22 +159,10 @@ class Phi4Lattice:
                                           self.mu,
                                           self.sigma,
                                           dist)
-
         object.__setattr__(self, 'phi_x', rand_phi_xs)
 
-        # determine if phi_x is singular or batched
-        # if phi_x.ndim == self.D then spatial axes are (0,...,D-1)
-        # if phi_x.ndim == self.D+1 then spatial axes are (1,...,D)
-        #     N, the number of field configs, becomes the dimension 0
-        # spatial_axes will give tup(rang(0,3))
-        #     = (0,1,2) for single 3D field
-        #  or = (1,2,3) for batched 3D fields
-        spatial_axes = tuple(range(self.phi_x.ndim - self.geom.D,
-                                   self.phi_x.ndim))
-
-        # shift will = 0 for single field; 1 for batch
-        shift = self.phi_x.ndim - self.geom.D
-
+        # infer layout
+        spatial_axes, shift = infer_layout(self.phi_x, self.geom.D)
         # update spatial_axes and shift
         object.__setattr__(self, 'spatial_axes',
                            tuple(int(x) for x in spatial_axes))
@@ -195,12 +179,16 @@ class Phi4Lattice:
         return self
 
     # --- mom field methods -------
-    def randomize_mom(self, N, s=1, randomize_keys=True):
+    def randomize_mom(self,
+                      N,
+                      s=None,
+                      randomize_keys=True,
+                      dist='normal'):
         mom_master_key, mom_keys = make_keys(N, s, randomize_keys)
         object.__setattr__(self, "mom_master_key", mom_master_key)
         object.__setattr__(self, "mom_keys", mom_keys)
-        mom_xs = self._randomize_core(mom_keys, self.geom.lat_shape,
-                                      mu=0, sigma=1)
+        mom_xs = self._rand_field_core(mom_keys, self.geom.lat_shape,
+                                       mu=0, sigma=1, dist='normal')
         object.__setattr__(self, 'mom_x', mom_xs)
         return self
 
@@ -215,112 +203,42 @@ class Phi4Lattice:
     # ===============================================
     # ------------- HMC field evolution -------------
     # ===============================================
-    def _split_keys(self, n):
-        keys = random.split(self.master_key, n + 1)
-        master_key, subkeys = keys[0], keys[1:]
-        object.__setattr__(self, "master_key", master_key)
-        return subkeys
-
-    def HMC(self,
-            cfg_or_N_steps: params.HMCConfig | int,
-            eps: float = None,
-            xi: float = None,
-            integrator: str = None,
-            seed: int = None,  # if seed is None, random seed is used
-            N_trajectories: int = 1,
-            metropolis: bool = True,
-            record_H: bool = False,
-            verbose: bool = False,
-            *, measure_fns: dict = None):
+    def _next_traj_keys(self, n_traj: int, *, seed: int | None = None) -> jnp.ndarray:
         """
-        Run N HMC tractories
-
-        Two call styles supported
-        New API:
-        1) HMC(cfg: HMCConfig, N_trajectories: int, ...)
-           where cfg is a HMCConfig dataclass instance
-
-        Legacy API:
-        2) HMC(N_steps=..., eps=..., xi=...,
-              integrator=..., N_trajectories=..., ...)
-              where N_steps, eps, xi, etc are passed directly
+        Return array of shape (n_traj, 2, 2) with (key_mom, key_meta) per trajectory.
+        If seed is given, use that; otherwise advance self.hmc_master_key.
         """
-        # parse HMC config
-        if isinstance(cfg_or_N_steps, params.HMCConfig):
-            if eps is not None or xi is not None:
-                raise ValueError("When using HMCConfig, "
-                                 "eps and xi should not be provided.")
-            if integrator != 'leapfrog':
-                raise ValueError("When using HMCConfig, "
-                                 "integrator should not be provided.")
-            cfg = cfg_or_N_steps
-            N_steps = cfg.N_steps
-            eps = cfg.eps
-            xi = cfg.xi
-            integrator = cfg.integrator
-            seed = cfg.seed
-            N_trajectories = cfg.N_trajectories
-            metropolis = cfg.metropolis
-            record_H = cfg.record_H
-            verbose = cfg.verbose
-        elif isinstance(cfg_or_N_steps, int):
-            N_steps = cfg_or_N_steps
-            if eps is None:
-                raise ValueError("When using legacy HMC API, "
-                                 "eps must be provided.")
-            if integrator is None:
-                raise ValueError("When using legacy HMC API, "
-                                 "integrator must be provided.")
-            if integrator == 'omelyan' and xi is None:
-                raise ValueError("When using legacy HMC API with "
-                                 "omelyan integrator, xi must be provided.")
-            cfg = params.HMCConfig(N_steps=N_steps,
-                                   eps=eps,
-                                   xi=xi,
-                                   integrator=integrator,
-                                   seed=seed,
-                                   N_trajectories=N_trajectories,
-                                   metropolis=metropolis,
-                                   record_H=record_H,
-                                   verbose=verbose)
+        if seed is not None:
+            key = random.PRNGKey(int(seed))
         else:
-            raise ValueError("First argument to HMC must be "
-                             "either HMCConfig or int (N_steps).")
+            key, new_key = random.split(self.hmc_config.seed)
+            object.__setattr__(self, "hmc_master_key", new_key)
 
-        # create mom rng keys
-        if cfg.seed is not None:
-            if isinstance(cfg.seed, int):
-                md_master_key = random.PRNGKey(cfg.seed)
-            # if seed is already a prng_key
-            if isinstance(cfg.seed, jnp.ndarray):
-                md_master_key = cfg.seed
-        else:
-            md_master_key = random.PRNGKey(np.random.randint(0, 10**6))
+        traj_keys = random.split(key, 2 * n_traj).reshape(n_traj, 2, 2)
+        return traj_keys
 
-        # need split_keys to get subkeys from the same master key
-        traj_keys = self._split_keys(md_master_key, 2 * cfg.N_trajectories)
-        # reshape for [(mom_key_1, r_key_1),...,(mom_key_N, r_key_N)]
-        traj_keys = traj_keys.reshape((cfg.N_trajectories, 2, 2))
+    def run_HMC(self,
+                cfg: params.HMCConfig,
+                seed: int = None,
+                measure_fns: Dict[str, callable] = None
+                ):
+        phi0=self.phi_x
+        mom0=self.mom_x
+        if seed is None:
+            seed = self.hmc_config.seed
+        traj_keys = self._next_traj_keys(cfg.N_trajectories, seed=seed)
 
-        # one trajectory function for lax.scan
-        def one_traj(state, key_pair):
-            # one key pair = (mom_key, r_key)
-            # one for mom refresh and one for metropolis test
-            return hmc.MD_traj(state, key_pair, cfg, measure_fns)
+        energy_fns = eng.make_phi4_energy_fns
+        S_Fn, grad_S_Fn, H_kinetic_Fn = energy_fns(self.model,
+                                                   self.geom,
+                                                   self.shift,
+                                                   self.spatial_axes)
 
-        # need lambda key because lax.scan only takes
-        # (carry, element) NOT params
-        (mom_accepted, phi_accepted), out_dict = lax.scan(
-            one_traj,
-            (self.mom_x, self.phi_x),
-            xs=traj_keys,
-            length=cfg.N_trajectories
-        )
-
-        object.__setattr__(self, 'mom_x', mom_accepted)
-        object.__setattr__(self, 'phi_x', phi_accepted)
-
-        if record_H or measure_fns or verbose:
-            object.__setattr__(self, 'measure_history', out_dict)
-
-        return self
+        hmc.run_HMC_trajectories(phi0=phi0,
+                                 mom0=mom0,
+                                 traj_keys=traj_keys,
+                                 cfg=cfg,
+                                 S_Fn=S_Fn,
+                                 grad_S_Fn=grad_S_Fn,
+                                 H_kinetic_Fn=H_kinetic_Fn,
+                                 measure_fns=measure_fns)

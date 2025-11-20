@@ -39,7 +39,7 @@ class HMCConfig:
     xi: float  # omelyan integrator parameter
     integrator: str  # 'leapfrog' or 'omelyan'
     # seed for random momentum generation
-    seed: int = None,  # if seed is None, random seed is used
+    seed: int = 2,  # default seed for hmc trajectories
     N_trajectories: int = 1  # number of HMC trajectories to run
     metropolis: bool = True  # whether to use Metropolis accept/reject
     record_H: bool = False  # whether to record Hamiltonian at each step
