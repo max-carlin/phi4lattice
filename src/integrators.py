@@ -20,16 +20,16 @@ handling can be done outside of jit.
 #                                    "xi",
 #                                    "N_steps",
 #                                    "record_H"))
-def omelyan_core_scan(mom_x0: jnp.ndarray,
-                      phi_x0: jnp.ndarray,
-                      *,  # required named args
-                      S_Fn: Callable,
-                      grad_S_Fn: Callable,
-                      H_kinetic_Fn: Callable,
-                      eps: float,
-                      xi: float,
-                      N_steps: int,
-                      record_H: bool):
+def omelyan_integrator(mom_x0: jnp.ndarray,
+                       phi_x0: jnp.ndarray,
+                       *,  # required named args
+                       S_Fn: Callable,
+                       grad_S_Fn: Callable,
+                       H_kinetic_Fn: Callable,
+                       eps: float,
+                       xi: float,
+                       N_steps: int,
+                       record_H: bool):
     """
     One Omelyan trajectory of N_steps.
     If record_H -> also return H history
@@ -87,15 +87,15 @@ def omelyan_core_scan(mom_x0: jnp.ndarray,
 #                                    "eps",
 #                                    "N_steps",
 #                                    "record_H"))
-def leapfrog_core_scan(mom_x0: jnp.ndarray,
-                       phi_x0: jnp.ndarray,
-                       *,  # required named args
-                       S_Fn: Callable,
-                       grad_S_Fn: Callable,
-                       H_kinetic_Fn: Callable,
-                       eps: float,
-                       N_steps: int,
-                       record_H: bool):
+def leapfrog_integrator(mom_x0: jnp.ndarray,
+                        phi_x0: jnp.ndarray,
+                        *,  # required named args
+                        S_Fn: Callable,
+                        grad_S_Fn: Callable,
+                        H_kinetic_Fn: Callable,
+                        eps: float,
+                        N_steps: int,
+                        record_H: bool):
     '''
     Run the leapfrog integrator for N_steps using JAX lax.scan.
 

@@ -143,24 +143,24 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
 
     # 2) run MD integrator to get proposed (mom_fx, phi_fx)
     if cfg.integrator == 'omelyan':
-        result = integ.omelyan_core_scan(mom_refreshed,
-                                         phi_old,
-                                         S_Fn=S_Fn,
-                                         grad_S_Fn=grad_S_Fn,
-                                         H_kinetic_Fn=H_kinetic_Fn,
-                                         eps=cfg.eps,
-                                         xi=cfg.xi,
-                                         N_steps=cfg.N_steps,
-                                         record_H=cfg.record_H)
-    elif cfg.integrator == 'leapfrog':
-        result = integ.leapfrog_core_scan(mom_refreshed,
+        result = integ.omelyan_integrator(mom_refreshed,
                                           phi_old,
                                           S_Fn=S_Fn,
                                           grad_S_Fn=grad_S_Fn,
                                           H_kinetic_Fn=H_kinetic_Fn,
                                           eps=cfg.eps,
+                                          xi=cfg.xi,
                                           N_steps=cfg.N_steps,
                                           record_H=cfg.record_H)
+    elif cfg.integrator == 'leapfrog':
+        result = integ.leapfrog_integrator(mom_refreshed,
+                                           phi_old,
+                                           S_Fn=S_Fn,
+                                           grad_S_Fn=grad_S_Fn,
+                                           H_kinetic_Fn=H_kinetic_Fn,
+                                           eps=cfg.eps,
+                                           N_steps=cfg.N_steps,
+                                           record_H=cfg.record_H)
     else:
         raise ValueError(f"Unknown integrator {cfg.integrator}. "
                          "Expected 'omelyan' or 'leapfrog'")

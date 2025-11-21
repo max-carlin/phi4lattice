@@ -1,50 +1,16 @@
 import random as random_basic
 import unittest
-import src.energetics as eng
+from src.energetics import phi4_action_core
+from src.energetics import make_phi4_energy_fns
 import sys
 import numpy as np
 import os
 import jax
 import jax.numpy as jnp
 import src.lattice as lattice
-
-
-def random_int_uniform(n=25, lower=-1000, upper=1000, seed=0):
-    """Generate a list of n random integers
-    between lower and upper (inclusive).
-    Args:
-        n (int): Number of random integers to generate.
-        lower (int): Lower bound for random integers.
-        upper (int): Upper bound for random integers.
-        seed (int): Seed for the random number generator.
-    Returns:
-        list: List of n random integers."""
-    """
-    Return a Python list of n random integers in [lower, upper], fast.
-    """
-    rng = np.random.default_rng(seed)
-    int_list = rng.integers(lower, upper,
-                            size=n, endpoint=True,
-                            dtype=np.int64).tolist()
-    return int_list
-
-
-def random_float_uniform(n=25, lower=-1000, upper=1000, seed=0):
-    """Generate a list of n random floats
-    between lower and upper (inclusive).
-    Args:
-        n (int): Number of random floats to generate.
-        lower (float): Lower bound for random floats.
-        upper (float): Upper bound for random floats.
-        seed (int): Seed for the random number generator.
-    Returns:
-        list: List of n random floats."""
-    """
-    Return a Python list of n random floats in [lower, upper], fast.
-    """
-    rng = np.random.default_rng(seed)
-    float_list = rng.uniform(lower, upper, size=n).tolist()
-    return float_list
+import src.params as params
+from src.test_helpers import random_int_uniform
+from src.test_helpers import random_float_uniform
 
 
 def create_field(L_array: jnp.ndarray,
@@ -79,10 +45,15 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S, K, W = eng.action_core(phi_x,
-                                  lam, kappa,
-                                  D, shift,
-                                  spatial_axes)
+        model = params.Phi4Params(lam=lam, kappa=kappa)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+
+        S, K, W = phi4_action_core(phi_x,
+                                   model=model,
+                                   geom=geom,
+                                   shift=shift,
+                                   spatial_axes=spatial_axes)
 
         # hand-checks
         # neighbors: each site has 2 in +x/-x and +y/-y
@@ -124,10 +95,15 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S, K, W = eng.action_core(phi_x,
-                                  lam, kappa,
-                                  D, shift,
-                                  spatial_axes)
+        model = params.Phi4Params(lam=lam, kappa=kappa)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+
+        S, K, W = phi4_action_core(phi_x,
+                                   model=model,
+                                   geom=geom,
+                                   shift=shift,
+                                   spatial_axes=spatial_axes)
 
         # hand-checks
         total_sites = 1
@@ -167,10 +143,15 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S, K, W = eng.action_core(phi_x,
-                                  lam, kappa,
-                                  D, shift,
-                                  spatial_axes)
+        model = params.Phi4Params(lam=lam, kappa=kappa)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+
+        S, K, W = phi4_action_core(phi_x,
+                                   model=model,
+                                   geom=geom,
+                                   shift=shift,
+                                   spatial_axes=spatial_axes)
 
         # hand-checks
         total_sites = 1
@@ -186,6 +167,17 @@ class TestAction(unittest.TestCase):
         self.assertIsInstance(W, jnp.ndarray)
         self.assertEqual(S.shape, ())
         self.assertAlmostEqual(S, S_manual, places=5)
+
+        model = params.Phi4Params(lam=lam, kappa=kappa)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+        eng_Fns = make_phi4_energy_fns(model=model,
+                                       geom=geom,
+                                       shift=shift,
+                                       spatial_axes=spatial_axes)
+
+        S_Fn = eng_Fns[0](phi_x)
+        self.assertTrue(jnp.allclose(S_Fn, S_manual, atol=1e-5))
 
     def test_action_batched_fields_rand(self):
         """test action on batched field configurations of random size
@@ -227,10 +219,15 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S, K, W = eng.action_core(phi_x,
-                                  lam, kappa,
-                                  D, shift,
-                                  spatial_axes)
+        model = params.Phi4Params(lam=lam, kappa=kappa)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+
+        S, K, W = phi4_action_core(phi_x,
+                                   model=model,
+                                   geom=geom,
+                                   shift=shift,
+                                   spatial_axes=spatial_axes)
 
         self.assertIsInstance(S, jnp.ndarray)
         self.assertIsInstance(K, jnp.ndarray)
@@ -259,15 +256,21 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S_pos, K_pos, W_pos = eng.action_core(phi_x,
-                                              lam, kappa,
-                                              D, shift,
-                                              spatial_axes)
+        model = params.Phi4Params(lam=lam, kappa=kappa)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
 
-        S_neg, K_neg, W_neg = eng.action_core(phi_x,
-                                              lam, kappa,
-                                              D, shift,
-                                              spatial_axes)
+        S_pos, K_pos, W_pos = phi4_action_core(phi_x,
+                                               model=model,
+                                               geom=geom,
+                                               shift=shift,
+                                               spatial_axes=spatial_axes)
+
+        S_neg, K_neg, W_neg = phi4_action_core(-phi_x,
+                                               model=model,
+                                               geom=geom,
+                                               shift=shift,
+                                               spatial_axes=spatial_axes)
         self.assertTrue(jnp.allclose(S_pos, S_neg, atol=1e-5))
         self.assertTrue(jnp.allclose(K_pos, K_neg, atol=1e-5))
         self.assertTrue(jnp.allclose(W_pos, W_neg, atol=1e-5))
@@ -293,10 +296,15 @@ class TestAction(unittest.TestCase):
         shift = phi_x.ndim - D
         spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        S_orig, K_orig, W_orig = eng.action_core(phi_x,
-                                                 lam, kappa,
-                                                 D, shift,
-                                                 spatial_axes)
+        model = params.Phi4Params(lam=lam, kappa=kappa)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+
+        S_orig, K_orig, W_orig = phi4_action_core(phi_x,
+                                                  model=model,
+                                                  geom=geom,
+                                                  shift=shift,
+                                                  spatial_axes=spatial_axes)
 
         # shift by random amounts in each dimension
         shifts = []
@@ -310,10 +318,13 @@ class TestAction(unittest.TestCase):
                                  shift=total_shifts,
                                  axis=tuple(range(phi_x.ndim)))
 
-        S_shifted, K_shifted, W_shifted = eng.action_core(phi_x_shifted,
-                                                          lam, kappa,
-                                                          D, shift,
-                                                          spatial_axes)
+        S_shifted, K_shifted, W_shifted = phi4_action_core(
+                                                    phi_x_shifted,
+                                                    model=model,
+                                                    geom=geom,
+                                                    shift=shift,
+                                                    spatial_axes=spatial_axes
+                                                    )
 
         self.assertTrue(jnp.allclose(S_orig, S_shifted, atol=1e-5))
         self.assertTrue(jnp.allclose(K_orig, K_shifted, atol=1e-5))
@@ -330,11 +341,11 @@ class TestGradAction(unittest.TestCase):
     kappa = random_basic.uniform(-10, 10)
     lam = random_basic.uniform(-10, 1.0)
 
-    lat = lattice.Phi4Lattice(a_array=a_arr,
-                              L_array=l_arr,
+    lat = lattice.Phi4Lattice(spacing_arr=a_arr,
+                              length_arr=l_arr,
                               kappa=kappa,
                               lam=lam)
-    lat.randomize_phi(N=1, randomize_keys=True)
+    lat.randomize_phi(N_fields=1, randomize_keys=True)
     phi_x = lat.phi_x
 
     def grad_phi4_action_manual(self, phi_x, lam, kappa, D):
@@ -361,16 +372,19 @@ class TestGradAction(unittest.TestCase):
                                                      lam,
                                                      kappa,
                                                      D)
+        shift = phi_x.ndim - D
+        spatial_axes = tuple(range(shift, phi_x.ndim))
 
-        grad_S = eng.grad_action_core(phi_x,
-                                      lam,
-                                      kappa,
-                                      D,
-                                      self.lat.shift,
-                                      self.lat.spatial_axes)
+        model = params.Phi4Params(lam=lam, kappa=kappa)
+        geom = params.LatticeGeometry(spacing_arr=self.a_arr,
+                                      length_arr=self.l_arr)
+        eng_Fns = make_phi4_energy_fns(model=model,
+                                       geom=geom,
+                                       shift=shift,
+                                       spatial_axes=spatial_axes)
+        grad_S = eng_Fns[1](phi_x)
         self.assertTrue(jnp.allclose(grad_S, grad_S_manual, atol=1e-5))
 
 
 if __name__ == '__main__':
     unittest.main()
-    sys.exit(0)

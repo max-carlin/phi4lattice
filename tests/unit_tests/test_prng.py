@@ -6,6 +6,8 @@ import os
 import jax
 import jax.numpy as jnp
 import src.prng as prng
+from src.test_helpers import random_int_uniform
+from src.test_helpers import random_float_uniform
 
 
 class TestMake_Keys(unittest.TestCase):
@@ -16,10 +18,14 @@ class TestMake_Keys(unittest.TestCase):
         # if s is already a key, use it
         key = jax.random.PRNGKey(np.random.randint(0, 10**6))
         # master key should be the same as input key
-        master, subkeys = prng.make_keys(5, s=key, randomize_keys=False)
+        master, subkeys = prng.make_keys(5,
+                                         seed_or_key=key,
+                                         randomize_keys=False)
         self.assertTrue(jnp.array_equal(master, key))
         self.assertEqual(subkeys.shape, (5, 2))
-        master2, subkeys2 = prng.make_keys(5, s=key, randomize_keys=False)
+        master2, subkeys2 = prng.make_keys(5,
+                                           seed_or_key=key,
+                                           randomize_keys=False)
         self.assertTrue(jnp.array_equal(master2, master))
         self.assertTrue(jnp.array_equal(subkeys2, subkeys))
 
@@ -27,8 +33,12 @@ class TestMake_Keys(unittest.TestCase):
         '''Test that integer seed produces consistent master
            and subkeys on repeat calls when randomize_keys=False'''
         seed = np.random.randint(0, 10**6)
-        master, subkeys = prng.make_keys(5, s=seed, randomize_keys=False)
-        master2, subkeys2 = prng.make_keys(5, s=seed, randomize_keys=False)
+        master, subkeys = prng.make_keys(5,
+                                         seed_or_key=seed,
+                                         randomize_keys=False)
+        master2, subkeys2 = prng.make_keys(5,
+                                           seed_or_key=seed,
+                                           randomize_keys=False)
         self.assertTrue(jnp.array_equal(master, master2))
         self.assertTrue(jnp.array_equal(subkeys, subkeys2))
 
@@ -79,4 +89,3 @@ class TestRandomizeUniform(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    sys.exit(0)

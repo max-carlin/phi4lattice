@@ -38,8 +38,8 @@ class HMCConfig:
     '''
     N_steps: int  # number of integrator steps per trajectory
     eps: float  # integrator step size
-    xi: float  # omelyan integrator parameter
-    integrator: str  # 'leapfrog' or 'omelyan'
+    xi: float | None = 0.1  # omelyan integrator parameter
+    integrator: str = 'omelyan'  # 'leapfrog' or 'omelyan'
     # seed for random momentum/metropolis criteria generation
     seed: int = 2  # default seed for hmc trajectories
     N_trajectories: int = 1  # number of HMC trajectories to run
@@ -55,6 +55,10 @@ class HMCConfig:
         if self.integrator not in valid_integrators:
             raise ValueError(f"Invalid integrator: {self.integrator}. "
                              f"Choose from {valid_integrators}.")
+        if self.integrator == 'omelyan':
+            if self.xi is None:
+                raise ValueError("xi parameter must be provided for "
+                                 "omelyan integrator.")
         if not isinstance(self.N_steps, numbers.Integral) \
            or self.N_steps <= 0:
             raise ValueError("N_steps must be positive int.")
@@ -94,11 +98,10 @@ class LatticeGeometry:
         initialization of derived geometric quantities
         '''
         # geom
-        D = len(self.length_arr)
-        V = jnp.prod(self.length_arr)
-        # validate inputs
-        if D <= 0:
-            raise ValueError("Number of dimensions D must be positive.")
+        if not isinstance(self.length_arr, jnp.ndarray):
+            raise TypeError("length_arr must be a jnp.ndarray.")
+        if not isinstance(self.spacing_arr, jnp.ndarray):
+            raise TypeError("spacing_arr must be a jnp.ndarray.")
         if any(length <= 0 for length in self.length_arr):
             raise ValueError("All lattice lengths must be positive.")
         if any(spacing <= 0 for spacing in self.spacing_arr):
@@ -106,9 +109,19 @@ class LatticeGeometry:
         if self.length_arr.shape != self.spacing_arr.shape:
             raise ValueError("length_arr and spacing_arr "
                              "must have the same shape.")
-        # --- Sec1
+
+        D = len(self.length_arr)
+        V = jnp.prod(self.length_arr)
+        # validate inputs
+        if D <= 0:
+            raise ValueError("Number of dimensions D must be positive.")
 
         lat_shape = tuple((self.length_arr//self.spacing_arr).tolist())
+        if lat_shape != tuple(jnp.array(lat_shape, dtype=int)):
+            raise ValueError("Lattice lengths must be integer "
+                             "multiples of spacings in each dimension.")
+
+        # set derived fields
         object.__setattr__(self, "D", D)
         object.__setattr__(self, "V", V)
         object.__setattr__(self, "lat_shape", lat_shape)

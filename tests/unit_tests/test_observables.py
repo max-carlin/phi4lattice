@@ -8,6 +8,8 @@ import os
 import jax
 import jax.numpy as jnp
 import src.lattice as lattice
+from src.test_helpers import random_int_uniform
+from src.test_helpers import random_float_uniform
 
 
 class TestMagnetization(unittest.TestCase):
@@ -17,8 +19,8 @@ class TestMagnetization(unittest.TestCase):
     a_arr = jnp.ones(D, dtype=int)
     l_arr = jnp.ones(D, dtype=int)*L
     n_fields = random_basic.randint(1, 5)
-    lat = lattice.Phi4Lattice(a_array=a_arr,
-                              L_array=l_arr,
+    lat = lattice.Phi4Lattice(spacing_arr=a_arr,
+                              length_arr=l_arr,
                               kappa=0.1,
                               lam=0.1,
                               n_keys=n_fields)
@@ -40,7 +42,7 @@ class TestMagnetization(unittest.TestCase):
         self.assertTrue(jnp.allclose(m, m_manual, atol=1e-2))
 
     def test_random_uniform_field(self):
-        self.lat.randomize_phi(N=self.n_fields,
+        self.lat.randomize_phi(N_fields=self.n_fields,
                                dist='uniform',
                                randomize_keys=True)
         phi_x = self.lat.phi_x
@@ -82,4 +84,3 @@ class TestMagnetization(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    sys.exit(0)
