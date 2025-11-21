@@ -28,7 +28,7 @@ def main():
     cfg = HMCConfig(
         N_steps=10,
         eps=0.05,
-        xi=0.1931833275037836,  # common Omelyan choice
+        xi=0.2,
         integrator="omelyan",   # or "leapfrog"
         seed=123,
         N_trajectories=20,
