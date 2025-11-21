@@ -1,5 +1,7 @@
 import jax
 import jax.numpy as jnp
+jax.config.update("jax_enable_x64", True)
+
 
 def infer_layout(phi_x: jnp.ndarray, D: int):
     '''
@@ -18,4 +20,4 @@ def infer_layout(phi_x: jnp.ndarray, D: int):
     spatial_axes = tuple(range(phi_x.ndim - D, phi_x.ndim))
     # shift will = 0 for single field; 1 for batch
     shift = phi_x.ndim - D
-    return shift, spatial_axes
+    return spatial_axes, shift

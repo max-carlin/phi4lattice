@@ -18,15 +18,13 @@ import numpy as np
 import jax.numpy as jnp
 import jax.random as random
 from jax import lax
-import .integrators as integ
-from .prng import make_keys, randomize_normal_core
-from .params import HMCConfig
+import src.integrators as integ
+from src.params import HMCConfig
 from typing import Callable
+from functools import partial
+jax.config.update("jax_enable_x64", True)
 
 
-
-@staticmethod
-@jax.jit
 def HMC_core(H_old: jnp.ndarray, H_prime: jnp.ndarray,
              phi_old: jnp.ndarray, phi_prime: jnp.ndarray,
              mom_old: jnp.ndarray, mom_prime: jnp.ndarray,
@@ -66,6 +64,8 @@ def HMC_core(H_old: jnp.ndarray, H_prime: jnp.ndarray,
         The energy difference.
     '''
     # First, we want to catch possible ValueErrors
+    # these might make jit fail so we should test outside
+    # of jit if possible.
     if H_old.shape != H_prime.shape:
         raise ValueError("Hamiltonians have different shapes.")
     if phi_old.shape != phi_prime.shape:
@@ -101,7 +101,7 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
             S_Fn: Callable,
             grad_S_Fn: Callable,
             H_kinetic_Fn: Callable,
-            measure_fns: dict[str, Callable] = None
+            measure_fns_dict: dict[str, Callable] = None
             ):
     '''Run one molecular dynamics (MD) trajectory step.
 
@@ -116,9 +116,9 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
         The current (momentum, field) state of the system.
     key_pair : tuple
         Random number generator keys.
-    params : HMCParams
+    cfg : HMCConfig
         Holds all integration and lattice geometry settings.
-    measure_fns : dict, optional
+    measure_fns_dict : dict, optional
         Functions to gather measurements on the final field.
 
     Returns
@@ -132,6 +132,8 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
     mom_old, phi_old = state
     # one key for momentum refresh, one for metropolis
     mom_key, r_key = traj_key_pair
+    # validate inputs
+    _validate_md_traj_inputs(state, traj_key_pair, cfg)
     traj_out_dict: dict = {}
 
     # 1) refresh momentum field at the start of each trajectory
@@ -139,7 +141,6 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
                                   shape=mom_old.shape,
                                   dtype=mom_old.dtype)
 
-    
     # 2) run MD integrator to get proposed (mom_fx, phi_fx)
     if cfg.integrator == 'omelyan':
         result = integ.omelyan_core_scan(mom_refreshed,
@@ -153,17 +154,17 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
                                          record_H=cfg.record_H)
     elif cfg.integrator == 'leapfrog':
         result = integ.leapfrog_core_scan(mom_refreshed,
-                                         phi_old,
-                                         S_Fn=S_Fn,
-                                         grad_S_Fn=grad_S_Fn,
-                                         H_kinetic_Fn=H_kinetic_Fn,
-                                         eps=cfg.eps,
-                                         N_steps=cfg.N_steps,
-                                         record_H=cfg.record_H)
+                                          phi_old,
+                                          S_Fn=S_Fn,
+                                          grad_S_Fn=grad_S_Fn,
+                                          H_kinetic_Fn=H_kinetic_Fn,
+                                          eps=cfg.eps,
+                                          N_steps=cfg.N_steps,
+                                          record_H=cfg.record_H)
     else:
         raise ValueError(f"Unknown integrator {cfg.integrator}. "
                          "Expected 'omelyan' or 'leapfrog'")
-    
+
     if cfg.record_H:
         mom_fx, phi_fx, H_hist = result
         traj_out_dict['H_hist'] = H_hist
@@ -175,9 +176,12 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
         H_old = H_kinetic_Fn(mom_refreshed) + S_Fn(phi_old)
         H_prime = H_kinetic_Fn(mom_fx) + S_Fn(phi_fx)
 
-        mom_acc, phi_acc, accept_mask, delta_H = HMC_core(H_old, H_prime,
-                                                          phi_old, phi_fx,
-                                                          mom_refreshed, mom_fx,
+        mom_acc, phi_acc, accept_mask, delta_H = HMC_core(H_old,
+                                                          H_prime,
+                                                          phi_old,
+                                                          phi_fx,
+                                                          mom_refreshed,
+                                                          mom_fx,
                                                           r_key)
         # overwrite final fields if accepted
         mom_fx, phi_fx = mom_acc, phi_acc
@@ -187,25 +191,46 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
         traj_out_dict['delta_H'] = delta_H
 
     # 4) measurements on final field if desired
-    if measure_fns:
-        for name, fn in measure_fns.items():
+    if measure_fns_dict:
+        for name, fn in measure_fns_dict.items():
             traj_out_dict[name] = fn(phi_fx)
 
     return (mom_fx, phi_fx), traj_out_dict
 
 
+def _validate_md_traj_inputs(state,
+                             traj_key_pair,
+                             cfg):
+    mom_old, phi_old = state
+    mom_key, r_key = traj_key_pair
+
+    if mom_old.shape != phi_old.shape:
+        raise ValueError("Momentum and field have different shapes.")
+    if not isinstance(cfg, HMCConfig):
+        raise ValueError("cfg must be an instance of HMCConfig.")
+    if mom_key.shape != (2,) or r_key.shape != (2,):
+        raise ValueError("Each key in traj_key_pair must have shape (2,).")
+
+
+# @jax.jit(static_argnames=("cfg", "S_Fn", "grad_S_Fn",
+#                           "H_kinetic_Fn", "measure_fns_dict"))
+@partial(jax.jit, static_argnums=(3, 4, 5, 6, 7))
 def run_HMC_trajectories(phi0: jnp.ndarray,
                          mom0: jnp.ndarray,
-                         traj_keys: tuple[jnp.ndarray, jnp.ndarray],
+                         traj_keys: jnp.ndarray,  # shape (N_traj, 2, 2)
                          cfg: HMCConfig,
                          S_Fn: Callable,
                          grad_S_Fn: Callable,
                          H_kinetic_Fn: Callable,
-                         measure_fns: dict[str, Callable] = None
-                         )-> tuple[tuple[jnp.ndarray, jnp.ndarray], dict]:
+                         measure_fns_dict: dict[str, Callable] = None
+                         ) -> tuple[tuple[jnp.ndarray, jnp.ndarray], dict]:
     """
     Wrap MD_traj to run multiple HMC trajectories using JAX lax.scan.
     """
+    if traj_keys.shape != (cfg.N_trajectories, 2, 2):
+        raise ValueError("traj_keys must have shape "
+                         f"({cfg.N_trajectories}, 2, 2); "
+                         f"got {traj_keys.shape}.")
 
     def one_traj(state, traj_key_pair):
         (mom_x, phi_x) = state
@@ -215,13 +240,13 @@ def run_HMC_trajectories(phi0: jnp.ndarray,
                                         S_Fn=S_Fn,
                                         grad_S_Fn=grad_S_Fn,
                                         H_kinetic_Fn=H_kinetic_Fn,
-                                        measure_fns=measure_fns)
+                                        measure_fns_dict=measure_fns_dict)
         return (mom_fx, phi_fx), out
-    
-    (mom_final, phi_final), traj_outs_dict = lax.scan(one_traj,
-                                                      (mom0, phi0),
-                                                      traj_keys,
-                                                      length=cfg.N_trajectories)
+
+    (mom_final, phi_final), traj_outs_dict = lax.scan(
+                                                    one_traj,
+                                                    (mom0, phi0),
+                                                    xs=traj_keys,
+                                                    length=cfg.N_trajectories
+                                                    )
     return (mom_final, phi_final), traj_outs_dict
-
-

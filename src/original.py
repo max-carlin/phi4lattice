@@ -10,6 +10,7 @@ import numpy as np
 from dataclasses import dataclass, field, replace
 # import matplotlib.pyplot as plt
 from typing import Dict
+from layout_utils
 jax.config.update("jax_enable_x64", True)  # 64 bit"""
 
 

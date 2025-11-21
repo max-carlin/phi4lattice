@@ -3,26 +3,43 @@ import jax.numpy as jnp
 from jax import lax
 from functools import partial
 from typing import Callable
+jax.config.update("jax_enable_x64", True)
 """
 Integrators methods for monte carlo.
+Designed to be interacted with through
+either hmc.py's run_HMC_trajectory
+or MD_traj function where error
+handling can be done outside of jit.
 """
 
 
-@staticmethod
-# N_steps through record_H static
-@partial(jax.jit, static_argnames=("S_Fn", "grad_S_Fn", "H_kinetic_Fn"))
+# @partial(jax.jit, static_argnames=("S_Fn",
+#                                    "grad_S_Fn",
+#                                    "H_kinetic_Fn"
+#                                    "eps",
+#                                    "xi",
+#                                    "N_steps",
+#                                    "record_H"))
 def omelyan_core_scan(mom_x0: jnp.ndarray,
-                       phi_x0: jnp.ndarray,*,
-                       S_Fn: Callable,
-                       grad_S_Fn: Callable,
-                       H_kinetic_Fn: Callable,
-                       eps: float,
-                       xi: float,
-                       N_steps: int,
-                       record_H: bool):
+                      phi_x0: jnp.ndarray,
+                      *,  # required named args
+                      S_Fn: Callable,
+                      grad_S_Fn: Callable,
+                      H_kinetic_Fn: Callable,
+                      eps: float,
+                      xi: float,
+                      N_steps: int,
+                      record_H: bool):
     """
     One Omelyan trajectory of N_steps.
-    If record_H -> also return H history (shape (N_steps+1, batch))
+    If record_H -> also return H history
+
+        Notes
+    -----
+    This is a low-level numerical kernel. It assumes inputs have been
+    validated (e.g. via HMCConfig and MD_traj) and performs minimal
+    error checking. For typical use, call it indirectly through
+    MD_traj / run_HMC_trajectories.
     """
     # pre-compute initial energy if Hamiltonian history is desired
     if record_H:
@@ -64,17 +81,30 @@ def omelyan_core_scan(mom_x0: jnp.ndarray,
     return mom_fx, phi_fx
 
 
-@staticmethod
-@partial(jax.jit, static_argnames=("S_Fn", "grad_S_Fn", "H_kinetic_Fn"))
+# @partial(jax.jit, static_argnames=("S_Fn",
+#                                    "grad_S_Fn",
+#                                    "H_kinetic_Fn"
+#                                    "eps",
+#                                    "N_steps",
+#                                    "record_H"))
 def leapfrog_core_scan(mom_x0: jnp.ndarray,
-                       phi_x0: jnp.ndarray,*,
+                       phi_x0: jnp.ndarray,
+                       *,  # required named args
                        S_Fn: Callable,
                        grad_S_Fn: Callable,
                        H_kinetic_Fn: Callable,
                        eps: float,
                        N_steps: int,
                        record_H: bool):
-    '''Run the leapfrog integrator for N_steps using JAX lax.scan.
+    '''
+    Run the leapfrog integrator for N_steps using JAX lax.scan.
+
+    Notes
+    -----
+    This is a low-level numerical kernel. It assumes inputs have been
+    validated (e.g. via HMCConfig and MD_traj) and performs minimal
+    error checking. For typical use, call it indirectly through
+    MD_traj / run_HMC_trajectories.
 
     Parameters
     ----------
@@ -137,8 +167,9 @@ def leapfrog_core_scan(mom_x0: jnp.ndarray,
         return (mom_x_p, phi_x_p), None
 
     # run leap_step for N_steps
-    (mom_fx, phi_fx), H_hist = lax.scan(lambda s, _: leap_step(s, _, params),
-                                        (mom_x0, phi_x0), xs=None,
+    (mom_fx, phi_fx), H_hist = lax.scan(leap_step,
+                                        (mom_x0, phi_x0),
+                                        xs=None,
                                         length=N_steps)
 
     if record_H:
