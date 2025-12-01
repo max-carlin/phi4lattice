@@ -1,6 +1,6 @@
 import unittest
 import sys
-sys.path.append('src')
+sys.path.append('src')  # noqa
 import hmc as hmc
 import params as params
 import jax.numpy as jnp

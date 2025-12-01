@@ -1,7 +1,7 @@
 import random as random_basic
 import unittest
 import sys
-sys.path.append('src') # noqa
+sys.path.append('src')  # noqa
 from energetics import phi4_action_core
 from energetics import make_phi4_energy_fns
 import sys

@@ -2,7 +2,7 @@
 import random as random_basic
 import unittest
 import sys
-sys.path.append('src')
+sys.path.append('src')  # noqa
 from observables import magnetization
 import sys
 import numpy as np

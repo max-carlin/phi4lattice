@@ -1,7 +1,7 @@
 import random as random_basic
 import unittest
 import sys
-sys.path.append('src')
+sys.path.append('src')  # noqa
 import numpy as np
 import os
 import jax

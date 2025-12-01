@@ -1,6 +1,6 @@
 import unittest
 import sys
-sys.path.append('src')
+sys.path.append('src')  # noqa
 from test_helpers import random_int_uniform
 from test_helpers import random_float_uniform
 from layout_utils import infer_layout

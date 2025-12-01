@@ -7,7 +7,7 @@ except for the lattice geometry, through command-line arguments.
 """
 
 import sys
-sys.path.append('src') # noqa
+sys.path.append('src')  # noqa
 import argparse
 import jax
 import jax.numpy as jnp
