@@ -1,11 +1,6 @@
 # phi4lattice
 > A reproducible, high performance hybrid monte carlo (HMC) engine for $\phi^4$ theory. 
 
-
-[![NPM Version][npm-image]][npm-url]
-[![Build Status][travis-image]][travis-url]
-[![Downloads Stats][npm-downloads]][npm-url]
-
 phi4lattice provides a lightweight framework for simulating scalar field theory on a lattice. The package implements a modular Hybrid Monte Carlo (HMC) workflow. The codebase and subsequent simulations are designed to support small, simple experiments as well as more serious exploratory simulations.
 
 ## Installation
