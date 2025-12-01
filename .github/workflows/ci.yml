@@ -1,31 +1,55 @@
 name: CI
 
 on:
-    push:
-    pull_request:
-        branches: [ main ]
+  push:
+  pull_request:
+    branches: [ main ]
 
 jobs:
-    run_style_check:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-            - uses: mamba-org/setup-micromamba@v2
-              with:
-                    environment-file: env.yml
-                    init-shell: bash
-            - run: pycodestyle $(git ls-files '*.py')
-              shell: bash -l {0}
-    
-    run_unit_tests:
-        runs-on: ubuntu-latest
-        env: 
-            PYTHONPATH: ${{ github.workspace }}
-        steps:
-            - uses: actions/checkout@v4
-            - uses: mamba-org/setup-micromamba@v2
-              with:
-                    environment-file: env.yml
-                    init-shell: bash
-            - run: python -q
-              shell: bash -l {0}
+  run_style_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: env.yml
+          init-shell: bash
+      - run: pycodestyle $(git ls-files '*.py')
+        shell: bash -l {0}
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: env.yml
+          init-shell: bash
+          cache-environment: false
+
+      - name: Run unit tests
+        run: |
+          python tests/unit_tests/test_energetics.py
+          python tests/unit_tests/test_hmc.py
+          python tests/unit_tests/test_integrators.py
+          python tests/unit_tests/test_layout_utils.py
+          python tests/unit_tests/test_observables.py
+          python tests/unit_tests/test_params.py
+          python tests/unit_tests/test_prng.py
+        shell: bash -l {0}
+
+
+
+  run_func_hmc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: env.yml
+          init-shell: bash
+      - run: bash tests/func_tests/test_run_hmc.sh
+        shell: bash -l {0}
+
+

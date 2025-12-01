@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 from functools import partial
-import src.params as params
+import params as params
 from typing import Callable
 jax.config.update("jax_enable_x64", True)
 """

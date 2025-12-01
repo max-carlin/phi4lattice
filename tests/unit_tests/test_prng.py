@@ -1,13 +1,14 @@
 import random as random_basic
 import unittest
 import sys
+sys.path.append('src')  # noqa
 import numpy as np
 import os
 import jax
 import jax.numpy as jnp
-import src.prng as prng
-from src.test_helpers import random_int_uniform
-from src.test_helpers import random_float_uniform
+import prng as prng
+from test_helpers import random_int_uniform
+from test_helpers import random_float_uniform
 
 
 class TestMake_Keys(unittest.TestCase):
