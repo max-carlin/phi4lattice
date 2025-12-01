@@ -19,18 +19,6 @@ jobs:
 
   unit-tests:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        test_file:
-          - tests/unit_tests/test_energetics.py
-          - tests/unit_tests/test_hmc.py
-          - tests/unit_tests/test_integrators.py
-          - tests/unit_tests/test_layout_utils.py
-          - tests/unit_tests/test_observables.py
-          - tests/unit_tests/test_params.py
-          - tests/unit_tests/test_prng.py
-
     steps:
       - uses: actions/checkout@v5
 
@@ -39,12 +27,18 @@ jobs:
           environment-file: env.yml
           init-shell: bash
           cache-environment: false
-          environment-name: phi4_env_${{ matrix.test_file }}   # <-- isolates env
-          create-args: "--no-rc"
 
-      - name: Run unit test
-        run: python ${{ matrix.test_file }}
+      - name: Run unit tests
+        run: |
+          python tests/unit_tests/test_energetics.py
+          python tests/unit_tests/test_hmc.py
+          python tests/unit_tests/test_integrators.py
+          python tests/unit_tests/test_layout_utils.py
+          python tests/unit_tests/test_observables.py
+          python tests/unit_tests/test_params.py
+          python tests/unit_tests/test_prng.py
         shell: bash -l {0}
+
 
 
   run_func_hmc:
