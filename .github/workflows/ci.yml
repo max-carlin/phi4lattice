@@ -18,89 +18,33 @@ jobs:
             - run: pycodestyle $(git ls-files '*.py')
               shell: bash -l {0}
     
-    run_unit_energetics:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: mamba-org/setup-micromamba@v2
-              with:
-                environment-file: env.yml
-                init-shell: bash
-                cache-environment: false
-            - run: python tests/unit_tests/test_energetics.py
-              shell: bash -l {0}
+    unit-tests:
+    runs-on: ubuntu-latest
 
-    run_unit_hmc:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: mamba-org/setup-micromamba@v2
-              with:
-                environment-file: env.yml
-                init-shell: bash
-                cache-environment: false
-            - run: python tests/unit_tests/test_hmc.py
-              shell: bash -l {0}
+    strategy:
+        matrix:
+        test_file:
+            - tests/unit_tests/test_energetics.py
+            - tests/unit_tests/test_hmc.py
+            - tests/unit_tests/test_integrators.py
+            - tests/unit_tests/test_layout_utils.py
+            - tests/unit_tests/test_observables.py
+            - tests/unit_tests/test_params.py
+            - tests/unit_tests/test_prng.py
 
-    run_unit_integrators:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: mamba-org/setup-micromamba@v2
-              with:
-                environment-file: env.yml
-                init-shell: bash
-                cache-environment: false
-            - run: python tests/unit_tests/test_integrators.py
-              shell: bash -l {0}
+    steps:
+        - uses: actions/checkout@v5
 
-    run_unit_layout_utils:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: mamba-org/setup-micromamba@v2
-              with:
-                environment-file: env.yml
-                init-shell: bash
-                cache-environment: false
-            - run: python tests/unit_tests/test_layout_utils.py
-              shell: bash -l {0}
+        - uses: mamba-org/setup-micromamba@v2
+          with:
+            environment-file: env.yml
+            init-shell: bash
+            cache-environment: false
 
-    run_unit_observables:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: mamba-org/setup-micromamba@v2
-              with:
-                environment-file: env.yml
-                init-shell: bash
-                cache-environment: false
-            - run: python tests/unit_tests/test_observables.py
-              shell: bash -l {0}
+        - name: Run unit test
+          run: python ${{ matrix.test_file }}
+          shell: bash -l {0}
 
-    run_unit_params:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: mamba-org/setup-micromamba@v2
-              with:
-                environment-file: env.yml
-                init-shell: bash
-                cache-environment: false
-            - run: python tests/unit_tests/test_params.py
-              shell: bash -l {0}
-
-    run_unit_prng:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: mamba-org/setup-micromamba@v2
-              with:
-                environment-file: env.yml
-                init-shell: bash
-                cache-environment: false
-            - run: python tests/unit_tests/test_prng.py
-              shell: bash -l {0}
 
     run_func_hmc:
         runs-on: ubuntu-latest
