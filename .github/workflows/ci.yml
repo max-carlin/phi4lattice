@@ -32,15 +32,20 @@ jobs:
           - tests/unit_tests/test_prng.py
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: env.yml
           init-shell: bash
+          cache-environment: false
+          environment-name: phi4_env_${{ matrix.test_file }}   # <-- isolates env
+          create-args: "--no-rc"
 
       - name: Run unit test
         run: python ${{ matrix.test_file }}
         shell: bash -l {0}
+
 
   run_func_hmc:
     runs-on: ubuntu-latest
