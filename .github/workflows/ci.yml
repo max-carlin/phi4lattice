@@ -14,9 +14,8 @@ jobs:
               with:
                     environment-file: env.yml
                     init-shell: bash
-                    generate-run-shell: true
-
             - run: pycodestyle $(git ls-files '*.py')
+              shell: bash -l {0}
     
     run_unit_energetics:
         runs-on: ubuntu-latest
@@ -26,8 +25,8 @@ jobs:
               with:
                 environment-file: env.yml
                 init-shell: bash
-                generate-run-shell: true
             - run: python tests/unit_tests/test_energetics.py
+              shell: bash -l {0}
 
     run_unit_hmc:
         runs-on: ubuntu-latest
@@ -37,8 +36,8 @@ jobs:
               with:
                 environment-file: env.yml
                 init-shell: bash
-                generate-run-shell: true
             - run: python tests/unit_tests/test_hmc.py
+              shell: bash -l {0}
 
     run_unit_integrators:
         runs-on: ubuntu-latest
@@ -48,8 +47,8 @@ jobs:
               with:
                 environment-file: env.yml
                 init-shell: bash
-                generate-run-shell: true
             - run: python tests/unit_tests/test_integrators.py
+              shell: bash -l {0}
 
     run_unit_layout_utils:
         runs-on: ubuntu-latest
@@ -59,8 +58,8 @@ jobs:
               with:
                 environment-file: env.yml
                 init-shell: bash
-                generate-run-shell: true
             - run: python tests/unit_tests/test_layout_utils.py
+              shell: bash -l {0}
 
     run_unit_observables:
         runs-on: ubuntu-latest
@@ -70,8 +69,8 @@ jobs:
               with:
                 environment-file: env.yml
                 init-shell: bash
-                generate-run-shell: true
             - run: python tests/unit_tests/test_observables.py
+              shell: bash -l {0}
 
     run_unit_params:
         runs-on: ubuntu-latest
@@ -81,8 +80,8 @@ jobs:
               with:
                 environment-file: env.yml
                 init-shell: bash
-                generate-run-shell: true
             - run: python tests/unit_tests/test_params.py
+              shell: bash -l {0}
 
     run_unit_prng:
         runs-on: ubuntu-latest
@@ -92,8 +91,8 @@ jobs:
               with:
                 environment-file: env.yml
                 init-shell: bash
-                generate-run-shell: true
             - run: python tests/unit_tests/test_prng.py
+              shell: bash -l {0}
 
     run_func_hmc:
         runs-on: ubuntu-latest
@@ -103,6 +102,6 @@ jobs:
               with:
                 environment-file: env.yml
                 init-shell: bash
-                generate-run-shell: true
             - run: bash tests/func_tests/test_run_hmc.sh
+              shell: bash -l {0}
 
