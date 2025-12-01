@@ -9,7 +9,7 @@ jobs:
     run_style_check:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
             - uses: mamba-org/setup-micromamba@v2
               with:
                     environment-file: env.yml
@@ -21,7 +21,7 @@ jobs:
     run_unit_energetics:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
             - uses: mamba-org/setup-micromamba@v2
               with:
                 environment-file: env.yml
@@ -33,7 +33,7 @@ jobs:
     run_unit_hmc:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
             - uses: mamba-org/setup-micromamba@v2
               with:
                 environment-file: env.yml
@@ -45,7 +45,7 @@ jobs:
     run_unit_integrators:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
             - uses: mamba-org/setup-micromamba@v2
               with:
                 environment-file: env.yml
@@ -57,7 +57,7 @@ jobs:
     run_unit_layout_utils:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
             - uses: mamba-org/setup-micromamba@v2
               with:
                 environment-file: env.yml
@@ -69,7 +69,7 @@ jobs:
     run_unit_observables:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
             - uses: mamba-org/setup-micromamba@v2
               with:
                 environment-file: env.yml
@@ -81,7 +81,7 @@ jobs:
     run_unit_params:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
             - uses: mamba-org/setup-micromamba@v2
               with:
                 environment-file: env.yml
@@ -93,7 +93,7 @@ jobs:
     run_unit_prng:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
             - uses: mamba-org/setup-micromamba@v2
               with:
                 environment-file: env.yml
@@ -105,7 +105,7 @@ jobs:
     run_func_hmc:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
             - uses: mamba-org/setup-micromamba@v2
               with:
                 environment-file: env.yml
