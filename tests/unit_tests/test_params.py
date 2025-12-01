@@ -1,11 +1,12 @@
 import unittest
 import sys
-import src.hmc as hmc
-import src.params as params
+sys.path.append('src')
+import hmc as hmc
+import params as params
 import jax.numpy as jnp
 import jax.random as random
-from src.test_helpers import random_int_uniform
-from src.test_helpers import random_float_uniform
+from test_helpers import random_int_uniform
+from test_helpers import random_float_uniform
 
 
 class TestHMCConfig(unittest.TestCase):

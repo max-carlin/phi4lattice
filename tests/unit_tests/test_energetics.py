@@ -1,16 +1,18 @@
 import random as random_basic
 import unittest
-from src.energetics import phi4_action_core
-from src.energetics import make_phi4_energy_fns
+import sys
+sys.path.append('src') # noqa
+from energetics import phi4_action_core
+from energetics import make_phi4_energy_fns
 import sys
 import numpy as np
 import os
 import jax
 import jax.numpy as jnp
-import src.lattice as lattice
-import src.params as params
-from src.test_helpers import random_int_uniform
-from src.test_helpers import random_float_uniform
+import lattice as lattice
+import params as params
+from test_helpers import random_int_uniform
+from test_helpers import random_float_uniform
 
 
 def create_field(L_array: jnp.ndarray,

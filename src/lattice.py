@@ -6,12 +6,12 @@ from functools import partial
 import numpy as np
 from dataclasses import dataclass, field, replace
 from typing import Dict, Optional
-from src.layout_utils import infer_layout
-from src.prng import make_keys
-import src.hmc as hmc
-import src.prng as prng
-import src.params as params
-import src.energetics as eng
+from layout_utils import infer_layout
+from prng import make_keys
+import hmc as hmc
+import prng as prng
+import params as params
+import energetics as eng
 import numbers
 jax.config.update("jax_enable_x64", True)  # 64 bit
 

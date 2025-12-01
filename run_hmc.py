@@ -6,12 +6,14 @@ an HMC integrator (leapfrog or omelyan). It exposes all simulation parameters,
 except for the lattice geometry, through command-line arguments.
 """
 
+import sys
+sys.path.append('src') # noqa
 import argparse
 import jax
 import jax.numpy as jnp
-from src.params import LatticeGeometry, Phi4Params, HMCConfig
-from src.lattice import Phi4Lattice
-from src.observables import magnetization, binder_cumulant
+from params import LatticeGeometry, Phi4Params, HMCConfig
+from lattice import Phi4Lattice
+from observables import magnetization, binder_cumulant
 
 
 def main(lam=1.0, kappa=0.1, N_steps=10, eps=0.05, xi=0.2,

@@ -1,15 +1,17 @@
 
 import random as random_basic
 import unittest
-from src.observables import magnetization
+import sys
+sys.path.append('src')
+from observables import magnetization
 import sys
 import numpy as np
 import os
 import jax
 import jax.numpy as jnp
-import src.lattice as lattice
-from src.test_helpers import random_int_uniform
-from src.test_helpers import random_float_uniform
+import lattice as lattice
+from test_helpers import random_int_uniform
+from test_helpers import random_float_uniform
 
 
 class TestMagnetization(unittest.TestCase):
