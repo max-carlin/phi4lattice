@@ -2,7 +2,7 @@
 
 This script runs a Hybrid Monte Carlo (HMC) simulation on a 4x4x4x4 lattice.
 It constructs the lattices, initializes the field, and evolves them using
-an HMC integrator (leapfrog or omelyan). It exposes all simulation parameters, 
+an HMC integrator (leapfrog or omelyan). It exposes all simulation parameters,
 except for the lattice geometry, through command-line arguments.
 """
 
