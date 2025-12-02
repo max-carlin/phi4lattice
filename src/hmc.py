@@ -225,8 +225,60 @@ def run_HMC_trajectories(phi0: jnp.ndarray,
                          measure_fns_dict: dict[str, Callable] = None
                          ) -> tuple[tuple[jnp.ndarray, jnp.ndarray], dict]:
     """
+    Wrapper for run_HMC_trajectories_core to allow for JIT compilation.
+    Accepts measure_fns_dict as a dictionary (not hashable for JAX JIT) and
+    converts to tuple of items and passes to jitted core function with
+    hashable representation of tuple, from which the dict can be reconstructed.
+
+    old error:
+        ValueError: Non-hashable static arguments are not supported.
+                    An error occurred while trying to hash an object
+                    of type <class 'dict'>,
+                    {'magnetization': <function magnetization at 0x12d5e5940>}.
+                    The error was:
+        TypeError: unhashable type: 'dict'
+    """
+    if measure_fns_dict is not None:
+        if not isinstance(measure_fns_dict, dict):
+            raise ValueError("measure_fns_dict must be a dictionary "
+                             "of name:function pairs.")
+        for name, fn in measure_fns_dict.items():
+            if not callable(fn):
+                raise ValueError(f"measure_fns_dict[{name}] is not callable.")
+
+        measure_fns_items = tuple(measure_fns_dict.items())
+
+    return run_HMC_trajectories_core(phi0,
+                                     mom0,
+                                     traj_keys,
+                                     cfg,
+                                     S_Fn,
+                                     grad_S_Fn,
+                                     H_kinetic_Fn,
+                                     measure_fns_items=measure_fns_items
+                                     )
+
+
+@partial(jax.jit, static_argnums=(3, 4, 5, 6, 7))
+def run_HMC_trajectories_core(phi0: jnp.ndarray,
+                              mom0: jnp.ndarray,
+                              traj_keys: jnp.ndarray,  # shape (N_traj, 2, 2)
+                              cfg: HMCConfig,
+                              S_Fn: Callable,
+                              grad_S_Fn: Callable,
+                              H_kinetic_Fn: Callable,
+                              measure_fns_items: tuple[tuple[str,
+                                                             Callable]] = None
+                              ) -> tuple[tuple[jnp.ndarray,
+                                               jnp.ndarray], dict]:
+    """
     Wrap MD_traj to run multiple HMC trajectories using JAX lax.scan.
     """
+    if measure_fns_items is not None:
+        measure_fns_dict = dict(measure_fns_items)
+    else:
+        measure_fns_dict = None
+
     if traj_keys.shape != (cfg.N_trajectories, 2, 2):
         raise ValueError("traj_keys must have shape "
                          f"({cfg.N_trajectories}, 2, 2); "

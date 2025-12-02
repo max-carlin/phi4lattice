@@ -93,8 +93,9 @@ def main():
     delta_H = lat.trajectory_history.get("delta_H", None)
     if delta_H is not None:
         print("Average ΔH over trajectories:", delta_H.mean())
-    
-    print("magnetization history:", lat.trajectory_history.get("magnetization", None))
+
+    print("magnetization history:",
+          lat.trajectory_history.get("magnetization", None))
 
 
 if __name__ == "__main__":
