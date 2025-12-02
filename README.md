@@ -6,24 +6,21 @@ phi4lattice provides a lightweight framework for simulating scalar field theory 
 ## Project Structure
 ```
 .
-├── env.yml
-├── README.md
-├── scripts
+├── env.yml            # dependencies/version control
+├── scripts            # example usage
 │   ├── example.py
 │   └── run_hmc.py
-├── src
+├── src                # code library
 │   ├── __init__.py
-│   ├── energetics.py
-│   ├── hmc.py
-│   ├── integrators.py
-│   ├── lattice.py
-│   ├── layout_utils.py
-│   ├── observables.py
-│   ├── params.py
-│   ├── prng.py
+│   ├── energetics.py    # action, grad S, hamiltonian
+│   ├── hmc.py           # HMC engine with MD
+│   ├── integrators.py   # leapfrog, Omelyan
+│   ├── lattice.py       # Phi4Lattice, fields
+│   ├── layout_utils.py  # infers batching
+│   ├── observables.py   # ex) magnetization
+│   ├── params.py        # configuration dataclasses
+│   ├── prng.py          # PRNG key helpers
 │   └── test_helpers.py
-├── ssshtest
-├── STRUCTURE.txt
 └── tests
     ├── func_tests
     │   └── test_run_hmc.sh
@@ -35,8 +32,6 @@ phi4lattice provides a lightweight framework for simulating scalar field theory 
         ├── test_observables.py
         ├── test_params.py
         └── test_prng.py
-
-8 directories, 27 files
 ```
 
 ## Installation
