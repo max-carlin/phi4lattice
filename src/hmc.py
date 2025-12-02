@@ -214,7 +214,7 @@ def _validate_md_traj_inputs(state,
 
 # @jax.jit(static_argnames=("cfg", "S_Fn", "grad_S_Fn",
 #                           "H_kinetic_Fn", "measure_fns_dict"))
-@partial(jax.jit, static_argnums=(3, 4, 5, 6, 7))
+# @partial(jax.jit, static_argnums=(3, 4, 5, 6, 7))
 def run_HMC_trajectories(phi0: jnp.ndarray,
                          mom0: jnp.ndarray,
                          traj_keys: jnp.ndarray,  # shape (N_traj, 2, 2)
