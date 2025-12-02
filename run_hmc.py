@@ -71,7 +71,7 @@ def main(lam=1.0, kappa=0.1, N_steps=10, eps=0.05, xi=0.2,
         seed=cfg.seed,          # seed for HMC trajectory keys
         randomize_keys=False,   # make it reproducible
         measure_fns_dict={"magnetization": lambda phi:
-                          magnetization(phi, geom.D)}  # keep it simple for the example
+                          magnetization(phi, geom.D)}
     )
 
     phi_final = lat.phi_x
