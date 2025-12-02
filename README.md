@@ -1,7 +1,26 @@
 # phi4lattice
 > A reproducible, high performance hybrid monte carlo (HMC) engine for $\phi^4$ theory. 
 
-phi4lattice provides a lightweight framework for simulating scalar field theory on a lattice. The package implements a modular Hybrid Monte Carlo (HMC) workflow. The codebase and subsequent simulations are designed to support small, simple experiments as well as more serious exploratory simulations.
+
+![phi-field evolution](phi_evolution_fast.gif)
+
+**phi4lattice** provides a lightweight framework for simulating real scalar $\phi^4$ field theory on a lattice. It provides a clean, reproducible implementation of Hybrid Monte Carlo (HMC). The codebase and subsequent simulations are designed to support small, simple experiments as well as more serious exploratory simulations.
+
+The core design goals of this project are:
+
+ - Reproducibility – random number handling, trajectory tracking, and fully specified simulation parameters.
+
+ - Performance – JIT'ed dynamics and minimal Python overhead.
+
+ - Modularity – separate components for geometry, model parameters, integrators, observables, and HMC.
+
+ - Usability – suitable both for small-scale problems and more extensive studies.
+
+## Features
+- HMC implementation with both leapfrog and omelyan integrators
+- Fully JAX accelerated
+- Modular architecture
+- Unit and functional tests
 
 ## Project Structure
 ```
