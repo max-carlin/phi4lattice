@@ -13,20 +13,23 @@ def make_keys(N_keys: int,  # number of keys to make (batch size)
               randomize_keys: bool = True
               ) -> tuple[jnp.ndarray, jnp.ndarray]:
     '''
-    prepare keys for sampling, returns tuple of arrays of keys;
+    Prepare keys for sampling, returns tuple of arrays of keys;
     (master key, array of subkeys)
     where the master key is used for further splitting if needed
-    and the N subkeys are used for sampling
-    Parameter Logic:
-    -----------
-    - seed_or_key is an int or PRNGKey:
+    and the N subkeys are used for sampling.
+
+    Parameters
+    ----------
+    seed_or_key : int, PRNGKey
         * randomize_keys must be False if providing seed or key
         * keys are deterministic if seed or key is provided
-    - seed_or_key is None:
+    seed_or_key : None:
         * randomize_keys must be True
         * keys are random if seed_or_key is None
 
-    note: randomization has to be host side because of np.random.randint
+    Notes
+    -----
+    Randomization has to be host side because of np.random.randint
     (jit doesn't like it)
     '''
     if not isinstance(N_keys, numbers.Integral) or N_keys <= 0:
@@ -76,7 +79,23 @@ def randomize_normal_core(keys: jnp.ndarray,
     random fields from a normal distribution
     with mean mu and standard deviation sigma.
     Returns array of shape (N, *lat_shape)
-    if mu and sigma are None, draws from standard normal
+    if mu and sigma are None, draws from standard normal.
+
+    Parameters
+    ----------
+    keys : jnp.ndarray, shape (N, 2)
+        Array of JAX PRNG keys, one per field to generate.
+    lat_shape : tuple of int
+        Shape of each lattice field to generate.
+    mu : float or int or None, optional
+        Mean of the normal distribution.
+    sigma : float or int or None, optional
+        Standard deviation of the normal distribution.
+
+    Returns
+    -------
+    jnp.ndarray, shape (N, *lat_shape)
+        Batch of N independent fields.
     """
     # vectorized normal draws
     #     partial partially evaluates random.normal
@@ -101,7 +120,20 @@ def randomize_uniform_core(keys: jnp.ndarray,
     Given N keys, draws a batch of N, independent,
     random fields from a uniform distribution
     over the interval [-1, 1].
-    Returns array of shape (N, *lat_shape)'''
+    Returns array of shape (N, *lat_shape)
+
+    Parameters
+    ----------
+    keys : jnp.ndarray, shape (N, 2)
+        Array of JAX PRNG keys.
+    lat_shape : tuple of int
+        Shape of each lattice field to generate.
+
+    Returns
+    -------
+    jnp.ndarray, shape (N, *lat_shape)
+        Fields drawn uniformly.
+    '''
     rng = partial(random.uniform,
                   shape=lat_shape,
                   dtype=jnp.float64,

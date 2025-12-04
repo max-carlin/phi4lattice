@@ -50,6 +50,21 @@ class Phi4Lattice:
         Number of independent field configurations (PRNG batch size).
     valid_dists : tuple
         Allowed string values for PRNG distributions ("normal", "uniform").
+
+    Attributes
+    ----------
+    phi_x : jnp.ndarray
+        Current field.
+    mom_x : jnp.ndarray
+        Current momentum field.
+    spatial_axes : tuple[int]
+        Axes as spatial dimensions.
+    shift : int
+        Lattice shift parameter.
+    trajectory_history : dict[str, jnp.ndarray]
+        Dictionary storing HMC trajectory measurements.
+    hmc_master_key : jnp.ndarray
+        Master PRNG key for HMC sampling.
     '''
     # ===============================================
     # ------- defining param defaults and types -----
@@ -106,8 +121,8 @@ class Phi4Lattice:
     # Post init to compute derived quantities
     def __post_init__(self):
         '''
-        initialization of lattice specific quantities
-        and rng params
+        Post-initialization tasks for lattice specific
+        quantities and RNG parameters.
         '''
         # legacy API support
         if self.model is None:
@@ -169,8 +184,23 @@ class Phi4Lattice:
                          mu=None,
                          sigma=None,
                          dist='normal') -> jnp.ndarray:
-        '''
-        wrapper for prng randomization cores
+        ''' Wrapper for PRNG randomization cores.
+
+        Parameters
+        ----------
+        keys : jnp.ndarray
+            Array of PRNG keys (one per independent configuration).
+        lat_shape : tuple[int]
+            Lattice shape.
+        mu, sigma : float or None
+            Mean and standard deviation for normal distributions.
+        dist : {'normal', 'uniform'}
+            Choice of PRNG distribution.
+
+        Returns
+        -------
+        jnp.ndarray
+            Random field array with shape (len(keys), *lat_shape).
         '''
         # valid_dists = ['normal', 'uniform']
         if dist == 'normal':
@@ -191,12 +221,33 @@ class Phi4Lattice:
                       dist: str = 'normal',
                       mu: int | float | None = None,
                       sigma: int | float | None = None):
+        """Re-initializes the phi-field.
+
+        Generates N new keys, calls the JIT'd kernel,
+        then mutates phi_x on the Python side. Also resizes the
+        momentum field to match the new phi shape. This is a
+        host-side operation.
+
+        Parameters
+        ----------
+        N_fields : int
+            Number of independent configurations.
+        seed_or_key : int or jnp.ndarray or None
+            Seed or PRNG key for reproducibility. If None and
+            `randomize_keys=True`, fresh random keys are drawn.
+        randomize_keys : bool
+            Whether to generate new keys even when a seed is provided.
+        dist : {'normal','uniform'}
+            Distribution for initialization.
+        mu, sigma : float or None
+            Parameters for the normal distribution.
+
+        Returns
+        -------
+        Phi4Lattice
+            Self, with updated phi and momentum fields.
         """
-        Host‐side
-        generate N new keys, call the JIT’d kernel, then
-        mutate self.phi_x on the Python side.
-        Resizes momentum field to match new phi shape.
-        """
+
         if not isinstance(N_fields, numbers.Integral) or N_fields <= 0:
             raise ValueError("N_fields must be positive integer.")
         if dist not in self.valid_dists:
@@ -238,9 +289,18 @@ class Phi4Lattice:
 
     # use for constant fields for simple magnetization expectations
     def constant_phi(self, constant):
-        '''
-        set all phi_x values to constant value
-        '''
+        """Set the phi field to a uniform constant value.
+
+        Parameters
+        ----------
+        constant : float
+            Value to broadcast across the entire phi lattice.
+
+        Returns
+        -------
+        Phi4Lattice
+            Self, with updated phi.
+        """
         if constant is None:
             raise ValueError("constant must be provided.")
         if not isinstance(constant, numbers.Real):
@@ -256,10 +316,28 @@ class Phi4Lattice:
                       dist='normal',
                       mu=None,
                       sigma=None):
-        """
+        '''Randomize the momentum field.
+
         Asymmetric to randomize_phi since n_keys is not changed here.
-        This is to force momentum sizes to match phi sizes.
-        """
+        This is to force momentum sizes to match phi sizes. It will
+        always match the shape of the phi field.
+
+        Parameters
+        ----------
+        seed_or_key : int or jnp.ndarray or None
+            PRNG seed or key.
+        randomize_keys : bool
+            Whether to generate fresh keys even when a seed is supplied.
+        dist : {'normal','uniform'}
+            Distribution to use.
+        mu, sigma : float or None
+            Parameters for the normal distribution.
+
+        Returns
+        -------
+        Phi4Lattice
+            Self, with updated momentum field.
+        '''
         if dist not in self.valid_dists:
             raise ValueError(f"dist must be one of {self.valid_dists}; "
                              f"got {dist}.")
@@ -284,9 +362,18 @@ class Phi4Lattice:
         return self
 
     def constant_momentum(self, constant):
-        '''
-        set all mom_x values to constant value
-        '''
+        """Set the momentum field to a uniform constant value.
+
+        Parameters
+        ----------
+        constant : float
+            Constant value across the momentum field.
+
+        Returns
+        -------
+        Phi4Lattice
+            Self, with updated momentum field.
+        """
         if constant is None:
             raise ValueError("constant must be provided.")
         if not isinstance(constant, numbers.Real):
@@ -305,10 +392,28 @@ class Phi4Lattice:
                 randomize_keys: bool = False,
                 measure_fns_dict: Dict[str, callable] = None
                 ):
-        """
-        Run HMC trajectories to update field configuration.
-        Mutates self.phi_x and self.mom_x to final values
-        after running HMC.
+        """Run HMC trajectories to evolve the field.
+
+        This updates phi_x and mom_x using the provided HMC
+        configuration and returns self.
+
+        Parameters
+        ----------
+        cfg : params.HMCConfig
+            Configuration object specifying leapfrog steps, step size,
+            trajectory count, and acceptance parameters.
+        seed : int or None
+            Seed used for PRNG key generation.
+        randomize_keys : bool
+            Whether to generate new keys.
+        measure_fns_dict : dict[str, callable], optional
+            Optional dictionary of measurement functions called during HMC
+            evolution.
+
+        Returns
+        -------
+        Phi4Lattice
+            Self, with updated field, momentum, and trajectory history.
         """
         phi0 = self.phi_x
         mom0 = self.mom_x
