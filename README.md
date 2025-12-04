@@ -65,18 +65,23 @@ From source:
 git clone https://github.com/max-carlin/phi4lattice.git
 cd phi4lattice
 micromamba create -f env.yml
-micromamba activate phi4lattice
+micromamba activate phi4_env
 ```
 
 ## Getting Started
+
+### Using pre-made scripts
 After cloning the repository and activating the environment, there are a number of pre-made scripts designed for experimentation. These are:
 - `scripts/plot_magnetization.py`
     - Will plot the magnetization over each HMC trajectory for a field configuration.
 - `scripts/run_hmc_phi_evolution.py`
     - Will plot each frame of the evolution of the $\phi$ field and compile these evolutions into a video for visualization.
 - `scripts/run_hmc.py`
-    -Runs a HMC simulation on a 4x4x4x4 lattice. This document and the parameters required to run it can be tuned using argparse command line arguments.
+    - Runs HMC simulation on a 4x4x4x4 lattice. This document and the parameters required to run it can be tuned using argparse command line arguments.
 
+Run these from from the root directory, e.g. `python scripts/plot_magnetization.py`
+
+### Manually setting up a simulation
 One can also manually set up their own simulation. In the root directory, create a python script and begin by importing the required modules.
 
 ```python

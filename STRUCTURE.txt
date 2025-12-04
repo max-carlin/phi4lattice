@@ -2,7 +2,8 @@
 ├── env.yml
 ├── README.md
 ├── scripts
-│   ├── example.py
+│   ├── plot_magnetization.py
+│   ├── run_hmc_phi_evolution.py
 │   └── run_hmc.py
 ├── src
 │   ├── __init__.py
