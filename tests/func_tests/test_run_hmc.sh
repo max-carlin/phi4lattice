@@ -2,7 +2,7 @@
 test -e ssshtest || curl -s -O https://raw.githubusercontent.com/ryanlayer/ssshtest/master/ssshtest
 . ssshtest
 
-script=run_hmc.py
+script=scripts/run_hmc.py
 
 run successful_run python $script
 assert_exit_code 0 
