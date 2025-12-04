@@ -1,11 +1,8 @@
-from typing import Dict
-from dataclasses import dataclass, field
-import jax
-import jax.numpy as jnp
-import numbers
-jax.config.update("jax_enable_x64", True)
-
 """
+This script contains the dataclasses the hold
+the initial parameters for the HMC process, the
+lattice geometry, and the phi4 parameters.
+
 Note on why dataclass and why frozen=True:
     JIT compilation is used heavily in this project for performance.
 
@@ -30,11 +27,39 @@ Note on why dataclass and why frozen=True:
     using JAX's JIT compilation.
 """
 
+from typing import Dict
+from dataclasses import dataclass, field
+import jax
+import jax.numpy as jnp
+import numbers
+jax.config.update("jax_enable_x64", True)
+
 
 @dataclass(frozen=True)
 class HMCConfig:
-    '''
-    HMC simulation parameters
+    '''Parameters for running (HMC) trajectories.
+
+    Parameters
+    ----------
+    N_steps : int
+        Number of integrator steps per trajectory.
+    eps : float
+        Integrator step size.
+    xi : float, optional
+        Omelyan integrator parameter. Required when integrator=omelyan.
+    integrator : {'leapfrog', 'omelyan'}, default='omelyan'
+        Choice of integrator for HMC evolution.
+    seed : int, default=2
+        Random seed for momentum generation and Metropolis accept/reject.
+    N_trajectories : int, default=1
+        Number of HMC trajectories to run.
+    metropolis : bool, default=True
+        Whether to apply Metropolis accept/reject
+        at the end of each trajectory.
+    record_H : bool, default=False
+        If True, store Hamiltonian values along each trajectory.
+    verbose : bool, default=False
+        If True, print progress information during HMC evolution.
     '''
     N_steps: int  # number of integrator steps per trajectory
     eps: float  # integrator step size
@@ -79,8 +104,23 @@ class HMCConfig:
 
 @dataclass(frozen=True)
 class LatticeGeometry:
-    '''
-    Lattice geometry parameters
+    '''Lattice geometry parameters.
+
+    Parameters
+    ----------
+    spacing_arr : jnp.ndarray, shape (D,)
+        Lattice spacing in each dimension.
+    length_arr : jnp.ndarray, shape (D,)
+        Physical length of the lattice in each dimension.
+
+    Attributes
+    ----------
+    D : int
+        Number of spatial dimensions.
+    V : int
+        Total lattice volume.
+    lat_shape : tuple of int
+        Shape of the lattice.
     '''
     # array of spacing between lattice nodes in each D
     spacing_arr: jnp.ndarray
@@ -129,8 +169,14 @@ class LatticeGeometry:
 
 @dataclass(frozen=True)
 class Phi4Params:
-    '''
-    Physical parameters for phi^4 theory
+    '''Physical parameters of the lattice phi4 field theory.
+
+    Parameters
+    ----------
+    lam : float
+        Quartic coupling constant controlling interaction strength.
+    kappa : float
+        Hopping parameter.
     '''
     lam: float  # coupling constant (quartic interaction strength)
     kappa: float  # hopping parameter (related to mass term)
@@ -143,6 +189,3 @@ class Phi4Params:
             raise TypeError("lam must be a float or int.")
         if not isinstance(self.kappa, numbers.Real):
             raise TypeError("kappa must be a float or int.")
-
-# can add another params class for a differnt model
-#  such as yukawa or gauge theory
