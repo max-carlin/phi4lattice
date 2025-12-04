@@ -248,6 +248,9 @@ def run_HMC_trajectories(phi0: jnp.ndarray,
 
         measure_fns_items = tuple(measure_fns_dict.items())
 
+    else:
+        measure_fns_items = measure_fns_dict
+
     return run_HMC_trajectories_core(phi0,
                                      mom0,
                                      traj_keys,
