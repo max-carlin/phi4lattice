@@ -8,10 +8,16 @@ It contains the following custom functions:
     * HMC_core :
         Determines whether to accept or reject a field based
         on the energy differences.
-    * MD_traj
+    * MD_traj :
         Runs one full molecular dynamics trajectory by refreshing the
         momentum field, evolving the system with a numerical integrator,
         and optionally performing an acceptance test.
+    * run_HMC_trajectories :
+        Prepares the measurement function dictionary and serves as a
+        wrapper to the JIT core function.
+    * run_HMC_trajectories_core :
+        JIT-compiled function, runs one step of the Hybrid Monte
+        Carlo process to update fields.
 '''
 import jax
 import numpy as np
@@ -51,6 +57,8 @@ def HMC_core(H_old: jnp.ndarray, H_prime: jnp.ndarray,
         Current omoentum field.
     mom_prime : jnp.ndarray
         Momentum field after the update.
+    key : jnp.ndarray
+        Key to draw from a uniform distribution.
 
     Returns
     -------
@@ -108,18 +116,32 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
     This function takes the current field and momentum values, refreshes
     the momentum from a normal distribution, and evolves the system forward
     with a numerical (leapfrog or omelyan) integrator. Optionally applies
-    HMC_core to accept / reject the new state.
+    HMC_core to accept or reject the new state. It may also make additional
+    measurements on the final field.
 
     Parameters
     ----------
-    state : tuple
-        The current (momentum, field) state of the system.
-    key_pair : tuple
-        Random number generator keys.
+    state : tuple of jnp.ndarray
+        A tuple ``(mom, phi)`` representing the current momentum and field.
+        The two arrays must have identical shapes.
+    traj_key_pair : tuple of jnp.ndarray
+        Two PRNG keys of shape ``(2,)``:
+            * ``mom_key`` — used to resample the momentum
+                            from a normal distribution.
+            * ``r_key`` — used for the Metropolis acceptance test.
     cfg : HMCConfig
-        Holds all integration and lattice geometry settings.
-    measure_fns_dict : dict, optional
-        Functions to gather measurements on the final field.
+        Configuration object containing integrator settings, step size,
+        trajectory length, and flags for Hamiltonian recording and Metropolis.
+    S_Fn : Callable
+        Function that computes the action ``S(phi)``.
+    grad_S_Fn : Callable
+        Function that computes the gradient of the action w.r.t. the field.
+    H_kinetic_Fn : Callable
+        Function computing the kinetic term ``T(p)`` of the Hamiltonian.
+    measure_fns_dict : dict[str, Callable], optional
+        A dictionary of measurement functions to be evaluated on the final
+        field configuration. Each function must accept ``phi`` and return a
+        JAX-compatible value.
 
     Returns
     -------
@@ -130,18 +152,18 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
         measurement results.
     '''
     mom_old, phi_old = state
-    # one key for momentum refresh, one for metropolis
+    # One key for momentum refresh, one for metropolis
     mom_key, r_key = traj_key_pair
-    # validate inputs
+    # Validate inputs
     _validate_md_traj_inputs(state, traj_key_pair, cfg)
     traj_out_dict: dict = {}
 
-    # 1) refresh momentum field at the start of each trajectory
+    # 1) Refresh momentum field at the start of each trajectory
     mom_refreshed = random.normal(mom_key,
                                   shape=mom_old.shape,
                                   dtype=mom_old.dtype)
 
-    # 2) run MD integrator to get proposed (mom_fx, phi_fx)
+    # 2) Run MD integrator to get proposed (mom_fx, phi_fx)
     if cfg.integrator == 'omelyan':
         result = integ.omelyan_integrator(mom_refreshed,
                                           phi_old,
@@ -183,14 +205,14 @@ def MD_traj(state: tuple[jnp.ndarray, jnp.ndarray],
                                                           mom_refreshed,
                                                           mom_fx,
                                                           r_key)
-        # overwrite final fields if accepted
+        # Overwrite final fields if accepted
         mom_fx, phi_fx = mom_acc, phi_acc
         traj_out_dict['traj_mom_key'] = mom_key
         traj_out_dict['traj_metropolis_key'] = r_key
         traj_out_dict['accept_mask'] = accept_mask
         traj_out_dict['delta_H'] = delta_H
 
-    # 4) measurements on final field if desired
+    # 4) Measurements on final field if desired
     if measure_fns_dict:
         for name, fn in measure_fns_dict.items():
             traj_out_dict[name] = fn(phi_fx)
@@ -224,19 +246,41 @@ def run_HMC_trajectories(phi0: jnp.ndarray,
                          H_kinetic_Fn: Callable,
                          measure_fns_dict: dict[str, Callable] = None
                          ) -> tuple[tuple[jnp.ndarray, jnp.ndarray], dict]:
-    """
-    Wrapper for run_HMC_trajectories_core to allow for JIT compilation.
-    Accepts measure_fns_dict as a dictionary (not hashable for JAX JIT) and
-    converts to tuple of items and passes to jitted core function with
-    hashable representation of tuple, from which the dict can be reconstructed.
+    """ Wrapper for running multiple HMC trajectories.
 
-    old error:
-        ValueError: Non-hashable static arguments are not supported.
-                    An error occurred while trying to hash an object
-                    of type <class 'dict'>,
-                    {'magnetization': <function magnetization at 0x12d5e5940>}.
-                    The error was:
-        TypeError: unhashable type: 'dict'
+    This function is a wrapper for run_HMC_trajectories_core to allow for
+    JIT compilation. It prepares measurement functions (which are not
+    hashable) into a JAX-compatible tuple and then forwards them to
+    run_HMC_trajectories_core.
+
+    Parameters
+    ----------
+    phi0 : jnp.ndarray
+        Initial field configuration.
+    mom0 : jnp.ndarray
+        Initial momentum configuration.
+    traj_keys : jnp.ndarray, shape (N_traj, 2, 2)
+        Array of PRNG keys. For each trajectory:
+            * key[0] is used for momentum refresh
+            * key[1] is used for Metropolis
+    cfg : HMCConfig
+        HMC configuration, including number of trajectories.
+    S_Fn : Callable
+        Function computing the action.
+    grad_S_Fn : Callable
+        Gradient of the action.
+    H_kinetic_Fn : Callable
+        Function computing kinetic energy.
+    measure_fns_dict : dict[str, Callable], optional
+        Mapping of measurement-name to function. These are evaluated on the
+        final field of each trajectory.
+
+    Returns
+    -------
+    (mom_final, phi_final) : tuple of jnp.ndarray
+        Final momentum and field after the sequence of trajectories.
+    traj_outs_dict : dict
+        Ouputs calculated for each measurement.
     """
     if measure_fns_dict is not None:
         if not isinstance(measure_fns_dict, dict):
@@ -247,6 +291,9 @@ def run_HMC_trajectories(phi0: jnp.ndarray,
                 raise ValueError(f"measure_fns_dict[{name}] is not callable.")
 
         measure_fns_items = tuple(measure_fns_dict.items())
+
+    else:
+        measure_fns_items = measure_fns_dict
 
     return run_HMC_trajectories_core(phi0,
                                      mom0,
@@ -272,7 +319,38 @@ def run_HMC_trajectories_core(phi0: jnp.ndarray,
                               ) -> tuple[tuple[jnp.ndarray,
                                                jnp.ndarray], dict]:
     """
-    Wrap MD_traj to run multiple HMC trajectories using JAX lax.scan.
+    JIT-compiled core for running multiple HMC trajectories.
+
+    This function wraps ``MD_traj`` inside a ``jax.lax.scan`` loop to
+    efficiently evolve the system through Hybrid Monte Carlo updates.
+    It reconstructs the measurement function dictionary from the
+    ``measure_fns_items`` when provided.
+
+    Parameters
+    ----------
+    phi0 : jnp.ndarray
+        Initial field configuration.
+    mom0 : jnp.ndarray
+        Initial momentum configuration.
+    traj_keys : jnp.ndarray, shape (N_traj, 2, 2)
+        PRNG keys for each trajectory.
+    cfg : HMCConfig
+        Configuration parameters for the HMC process.
+    S_Fn : Callable
+        Action function.
+    grad_S_Fn : Callable
+        Gradient of the action.
+    H_kinetic_Fn : Callable
+        Kinetic energy function.
+    measure_fns_items : tuple[(str, Callable)], optional
+        Measurement functions created by ``run_HMC_trajectories``.
+
+    Returns
+    -------
+    (mom_final, phi_final) : tuple of jnp.ndarray
+        Final momentum and field after all trajectories.
+    traj_outs : dict
+        Ouputs calculated for each measurement.
     """
     if measure_fns_items is not None:
         measure_fns_dict = dict(measure_fns_items)
