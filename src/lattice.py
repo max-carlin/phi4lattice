@@ -18,10 +18,38 @@ jax.config.update("jax_enable_x64", True)  # 64 bit
 
 @dataclass
 class Phi4Lattice:
-    '''Core class to handle and create our lattice.
-    - Handles geometry, initialization
+    '''Core class to handle and create the lattice.
 
-    Dataclass that takes parameters from the lattice geometry.
+    This class has methods to handle:
+    - Lattice geometry.
+    - Model parameters for phi-4 theory.
+    - Initialization of phi and momentum fields.
+    - HMC evolution of the field.
+    - PRNG key management.
+
+    Parameters
+    ----------
+    model : params.Phi4Params or None
+        Frozen dataclass containing coupling constant and
+        hopping parameter. If not provided, the
+        parameters `kappa` and `lam` must be supplied.
+    geom : params.LatticeGeometry or None
+        Frozen dataclass describing lattice spacing and shape. If not provided,
+        the parameters `spacing_arr` and `length_arr` must be supplied.
+    hmc_config : params.HMCConfig or None
+        Optional default HMC configuration.
+    spacing_arr, length_arr : array-like, optional
+        geometry parameters.
+    kappa, lam : float, optional
+        phi-4 model parameters if not initializing Phi4Params.
+    phi_dist, phi_mu, phi_sigma, phi_seed : various
+        Distribution parameters for phi initialization.
+    mom_dist, mom_mu, mom_sigma, mom_seed : various
+        Distribution parameters for momentum initialization.
+    n_keys : int
+        Number of independent field configurations (PRNG batch size).
+    valid_dists : tuple
+        Allowed string values for PRNG distributions ("normal", "uniform").
     '''
     # ===============================================
     # ------- defining param defaults and types -----
@@ -129,9 +157,6 @@ class Phi4Lattice:
         object.__setattr__(self, 'spatial_axes',
                            tuple(int(x) for x in spatial_axes))
         object.__setattr__(self, 'shift', shift)
-
-        # history initialization
-        # object.__setattr__(self, 'H_history', None)
 
     # ===========================================================
     # --------- Field Initialization Methods --------
