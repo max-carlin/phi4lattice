@@ -1,25 +1,27 @@
+"""
+Integrator methods for Hybrid Monte Carlo (HMC).
+
+This module provides low-level numerical integrators used to evolve the
+field and momentum system during a Molecular Dynamics (MD) trajectory.
+It is designed to be interacted with through either hmc.py's
+run_HMC_trajectory or MD_traj functions. Both integrators optionally
+record the Hamiltonian at each step.
+
+It contains the following custom functions:
+    * omelyan_integrator :
+        Runs one step of omelyan numerical integration.
+    * leapfrog_integrator :
+        Runs one step of leapfrog numerical integration.
+"""
+
 import jax
 import jax.numpy as jnp
 from jax import lax
 from functools import partial
 from typing import Callable
 jax.config.update("jax_enable_x64", True)
-"""
-Integrators methods for monte carlo.
-Designed to be interacted with through
-either hmc.py's run_HMC_trajectory
-or MD_traj function where error
-handling can be done outside of jit.
-"""
 
 
-# @partial(jax.jit, static_argnames=("S_Fn",
-#                                    "grad_S_Fn",
-#                                    "H_kinetic_Fn"
-#                                    "eps",
-#                                    "xi",
-#                                    "N_steps",
-#                                    "record_H"))
 def omelyan_integrator(mom_x0: jnp.ndarray,
                        phi_x0: jnp.ndarray,
                        *,  # required named args
@@ -30,11 +32,44 @@ def omelyan_integrator(mom_x0: jnp.ndarray,
                        xi: float,
                        N_steps: int,
                        record_H: bool):
-    """
-    One Omelyan trajectory of N_steps.
-    If record_H -> also return H history
+    """One Omelyan trajectory of N_steps.
 
-        Notes
+    This function performs one step of the Omelyan
+    numerical integration scheme. It will also optionally
+    return H history.
+
+    Parameters
+    ----------
+    mom_x0 : jnp.ndarray
+        Initial momentum field.
+    phi_x0 : jnp.ndarray
+        Initial field configuration.
+    S_Fn : Callable
+        Function computing the action.
+    grad_S_Fn : Callable
+        Function computing gradient.
+    H_kinetic_Fn : Callable
+        Function computing the kinetic term.
+    eps : float
+        Integrator step size.
+    xi : float
+        Omelyan parameter.
+    N_steps : int
+        Number of MD integration steps.
+    record_H : bool
+        Whether to record the Hamiltonian values at each step.
+
+    Returns
+    -------
+    mom_fx : jnp.ndarray
+        Final momentum field after integration.
+    phi_fx : jnp.ndarray
+        Final field after integration.
+    H_hist : jnp.ndarray, optional
+        Hamiltonian history if `record_H` is True.
+
+
+    Notes
     -----
     This is a low-level numerical kernel. It assumes inputs have been
     validated (e.g. via HMCConfig and MD_traj) and performs minimal
@@ -81,12 +116,6 @@ def omelyan_integrator(mom_x0: jnp.ndarray,
     return mom_fx, phi_fx
 
 
-# @partial(jax.jit, static_argnames=("S_Fn",
-#                                    "grad_S_Fn",
-#                                    "H_kinetic_Fn"
-#                                    "eps",
-#                                    "N_steps",
-#                                    "record_H"))
 def leapfrog_integrator(mom_x0: jnp.ndarray,
                         phi_x0: jnp.ndarray,
                         *,  # required named args
@@ -99,25 +128,40 @@ def leapfrog_integrator(mom_x0: jnp.ndarray,
     '''
     Run the leapfrog integrator for N_steps using JAX lax.scan.
 
-    Notes
-    -----
-    This is a low-level numerical kernel. It assumes inputs have been
-    validated (e.g. via HMCConfig and MD_traj) and performs minimal
-    error checking. For typical use, call it indirectly through
-    MD_traj / run_HMC_trajectories.
-
     Parameters
     ----------
     mom_x0 : jnp.ndarray
         Initial momentum field.
     phi_x0 : jnp.ndarray
         Initial field configuration.
-    params : HMCParams
-        Simulation parameters
+    S_Fn : Callable
+        Function computing the action.
+    grad_S_Fn : Callable
+        Function computing the gradient.
+    H_kinetic_Fn : Callable
+        Function computing the kinetic term.
+    eps : float
+        Integrator step size.
+    N_steps : int
+        Number of MD integration steps.
+    record_H : bool
+        Whether to record Hamiltonian values at each step.
 
     Returns
     -------
-    mom_fx, phi_fx : tuple
+    mom_fx : jnp.ndarray
+        Final momentum field.
+    phi_fx : jnp.ndarray
+        Final field after integration.
+    H_hist : jnp.ndarray, optional
+        Hamiltonian history of shape (N_steps + 1,) if `record_H` is True.
+
+    Notes
+    -----
+    This is a low-level numerical kernel. It assumes inputs have been
+    validated (e.g. via HMCConfig and MD_traj) and performs minimal
+    error checking. For typical use, call it indirectly through
+    MD_traj / run_HMC_trajectories.
     '''
 
     # compute initial H if history is desired
