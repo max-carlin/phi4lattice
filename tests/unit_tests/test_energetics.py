@@ -13,6 +13,8 @@ import lattice as lattice
 import params as params
 from test_helpers import random_int_uniform
 from test_helpers import random_float_uniform
+from energetics import ising_action_core
+from energetics import make_ising_energy_fns
 
 
 def create_field(L_array: jnp.ndarray,
@@ -80,7 +82,7 @@ class TestAction(unittest.TestCase):
         fill_value = 1.5
         lam = 1
         kappa = 0.5
-        D = random_basic.randint(2, 5)
+        D = random_basic.randint(1, 5)
         random_seed = random_basic.randint(0, 10000)
         L_array_list = random_int_uniform(n=D,
                                           lower=3,
@@ -386,6 +388,179 @@ class TestGradAction(unittest.TestCase):
                                        spatial_axes=spatial_axes)
         grad_S = eng_Fns[1](phi_x)
         self.assertTrue(jnp.allclose(grad_S, grad_S_manual, atol=1e-5))
+
+# ------ ising tests ------
+
+
+def create_ising_field(L_array: jnp.ndarray,
+                       seed=0,
+                       batch_size: int = 1):
+    """Create a random Ising field configuration."""
+    D = len(L_array)
+    lat_shape = tuple(L_array.tolist())
+    rng = np.random.default_rng(seed)
+    if batch_size == 1:
+        sigma_x = jnp.array(rng.choice([-1, 1], size=lat_shape))
+    else:
+        sigma_x = jnp.array(rng.choice([-1, 1], size=(batch_size, *lat_shape)))
+
+    return sigma_x
+
+
+def create_zero_action_ising_field(L_array: jnp.ndarray,
+                                   seed=0,
+                                   batch_size: int = 1):
+    lat_shape = tuple(L_array.tolist())
+    V = int(jnp.prod(L_array))
+
+    if V % 2 != 0:
+        raise ValueError("Lattice volume must be even for zero-action config.")
+    # create balanced config with half +1 and half -1
+    rng = np.random.default_rng(seed)
+    max_tries = 10**6
+
+    def one_field():
+        for _ in range(max_tries):
+            flat = np.array([1] * (V // 2) + [-1] * (V // 2))
+            rng.shuffle(flat)
+            sigma_x = jnp.array(flat).reshape(lat_shape)
+            W = 0
+            for mu in range(len(L_array)):
+                W += (sigma_x * jnp.roll(sigma_x, 1, axis=mu)).sum()
+            M = sigma_x.sum()
+            if W == 0 and M == 0:
+                return sigma_x
+        raise RuntimeError("Failed to create zero-action config after"
+                           ""f"{max_tries} tries.")
+    if batch_size == 1:
+        sigma_x = one_field()
+    else:
+        sigma_x = jnp.array([one_field() for _ in range(batch_size)])
+    return sigma_x
+
+
+class TestIsingAction(unittest.TestCase):
+    def test_ising_action_zero_action(self):
+        """test that ising action is zero for a field of all ones"""
+        kappa = random_basic.uniform(-10, 10)
+        h = 0.0
+        D = random_basic.randint(1, 5)
+        random_seed = random_basic.randint(0, 10000)
+        L_array_list = random_int_uniform(n=D,
+                                          lower=1,
+                                          upper=4,
+                                          seed=random_seed)
+        # need L=0 mod 4 i think
+        L_array = jnp.array(L_array_list)*4
+        batch_size = random_basic.randint(1, 5)
+        model = params.IsingParams(kappa=kappa, h=h)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+        sigma_x = create_zero_action_ising_field(L_array,
+                                                 seed=random_seed,
+                                                 batch_size=batch_size)
+        shift = sigma_x.ndim - D
+        spatial_axes = tuple(range(shift, sigma_x.ndim))
+        S, K, W = ising_action_core(sigma_x,
+                                    model=model,
+                                    geom=geom,
+                                    shift=shift,
+                                    spatial_axes=spatial_axes)
+        self.assertTrue(jnp.allclose(S, 0.0, atol=1e-5))
+
+    def test_ising_action_random_field(self):
+        """test that ising action matches expected value for simple configs"""
+        kappa = random_basic.uniform(-10, 10)
+        h = random_basic.uniform(-10, 10)
+        D = random_basic.randint(1, 5)
+        random_seed = random_basic.randint(0, 10**5)
+        L_array_list = random_int_uniform(n=D,
+                                          lower=3,
+                                          upper=5,
+                                          seed=random_seed)
+
+        L_array = jnp.array(L_array_list)
+        sigma_x= create_ising_field(L_array,
+                                    seed=random_seed)
+        shift = sigma_x.ndim - D
+        spatial_axes = tuple(range(shift, sigma_x.ndim))
+        model = params.IsingParams(kappa=kappa, h=h)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+        S, K, W = ising_action_core(sigma_x,
+                                    model=model,
+                                    geom=geom,
+                                    shift=shift,
+                                    spatial_axes=spatial_axes)
+        self.assertAlmostEqual(S,
+                               K - h * sigma_x.sum(axis=spatial_axes),
+                               places=5)
+    
+    def test_make_ising_energy_fns_S(self):
+        """test that make_ising_energy_fns returns functions that match ising_action_core"""
+        kappa = random_basic.uniform(-10, 10)
+        h = random_basic.uniform(-10, 10)
+        D = random_basic.randint(1, 5)
+        random_seed = random_basic.randint(0, 10**5)
+        L_array_list = random_int_uniform(n=D,
+                                          lower=3,
+                                          upper=5,
+                                          seed=random_seed)
+
+        L_array = jnp.array(L_array_list)
+        sigma_x= create_ising_field(L_array,
+                                    seed=random_seed)
+        shift = sigma_x.ndim - D
+        spatial_axes = tuple(range(shift, sigma_x.ndim))
+        model = params.IsingParams(kappa=kappa, h=h)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+        S_core, K_core, W_core = ising_action_core(sigma_x,
+                                                  model=model,
+                                                  geom=geom,
+                                                  shift=shift,
+                                                  spatial_axes=spatial_axes)
+        S_Fn, propose_flip_Fn = make_ising_energy_fns(model=model,
+                                                      geom=geom,
+                                                      shift=shift,
+                                                      spatial_axes=spatial_axes)
+        S_fn = S_Fn(sigma_x)
+
+        self.assertTrue(jnp.allclose(S_fn, S_core, atol=1e-5))
+
+    def test_make_ising_energy_fns_propose_flips_one_spin_per_field(self):
+        random_seed = random_basic.randint(0, 10**5)
+        D = random_basic.randint(1, 5)
+        L_array = jnp.array(random_int_uniform(n=D,
+                                               lower=1,
+                                               upper=5,
+                                               seed=random_seed))
+        batch_size = random_basic.randint(1, 5)
+
+        sigma_x = create_ising_field(L_array,
+                                    seed=random_seed,
+                                    batch_size=batch_size)
+        shift = sigma_x.ndim - D
+        spatial_axes = tuple(range(shift, sigma_x.ndim))
+        model = params.IsingParams(kappa=0.5, h=0.1)
+        geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
+                                      length_arr=L_array)
+        S_Fn, propose_flip_Fn = make_ising_energy_fns(model=model,
+                                                      geom=geom,
+                                                      shift=shift,
+                                                      spatial_axes=spatial_axes)
+        site_key = jax.random.PRNGKey(random_seed)
+        sigma_prop, site_coords = propose_flip_Fn(sigma_x, site_key)
+        # check that exactly one spin is flipped in each field
+        diff = sigma_prop - sigma_x
+        num_flips = jnp.sum(diff != 0, axis=spatial_axes)
+        self.assertTrue(jnp.all(num_flips == 1))
+
+        # check coordinate lengths match lattice shape
+        self.assertEqual(len(site_coords), D)
+
+        # check sigma shape is unchanged
+        self.assertEqual(sigma_prop.shape, sigma_x.shape)
 
 
 if __name__ == '__main__':

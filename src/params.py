@@ -36,6 +36,74 @@ jax.config.update("jax_enable_x64", True)
 
 
 @dataclass(frozen=True)
+class LatticeGeometry:
+    '''Lattice geometry parameters.
+
+    Parameters
+    ----------
+    spacing_arr : jnp.ndarray, shape (D,)
+        Lattice spacing in each dimension.
+    length_arr : jnp.ndarray, shape (D,)
+        Physical length of the lattice in each dimension.
+
+    Attributes
+    ----------
+    D : int
+        Number of spatial dimensions.
+    V : int
+        Total lattice volume.
+    lat_shape : tuple of int
+        Shape of the lattice.
+    '''
+    # array of spacing between lattice nodes in each D
+    spacing_arr: jnp.ndarray
+    # array of lattice lengths in each D
+    length_arr: jnp.ndarray
+    # number of spatial dimensions
+    D: int = field(init=False)
+    # total lattice volume
+    V: int = field(init=False)
+    # shape of the lattice in each D
+    lat_shape: tuple[int, ...] = field(init=False)
+
+    def __post_init__(self):
+        '''
+        initialization of derived geometric quantities
+        '''
+        # geom
+        if not isinstance(self.length_arr, jnp.ndarray):
+            raise TypeError("length_arr must be a jnp.ndarray.")
+        if not isinstance(self.spacing_arr, jnp.ndarray):
+            raise TypeError("spacing_arr must be a jnp.ndarray.")
+        if any(length <= 0 for length in self.length_arr):
+            raise ValueError("All lattice lengths must be positive.")
+        if any(spacing <= 0 for spacing in self.spacing_arr):
+            raise ValueError("All lattice spacings must be positive.")
+        if self.length_arr.shape != self.spacing_arr.shape:
+            raise ValueError("length_arr and spacing_arr "
+                             "must have the same shape.")
+
+        D = len(self.length_arr)
+        V = jnp.prod(self.length_arr)
+        # validate inputs
+        if D <= 0:
+            raise ValueError("Number of dimensions D must be positive.")
+
+        lat_shape = tuple((self.length_arr//self.spacing_arr).tolist())
+        if lat_shape != tuple(jnp.array(lat_shape, dtype=int)):
+            raise ValueError("Lattice lengths must be integer "
+                             "multiples of spacings in each dimension.")
+
+        # set derived fields
+        object.__setattr__(self, "D", D)
+        object.__setattr__(self, "V", V)
+        object.__setattr__(self, "lat_shape", lat_shape)
+
+
+# ---------- Phi4 model -------
+
+
+@dataclass(frozen=True)
 class HMCConfig:
     '''Parameters for running (HMC) trajectories.
 
@@ -103,71 +171,6 @@ class HMCConfig:
 
 
 @dataclass(frozen=True)
-class LatticeGeometry:
-    '''Lattice geometry parameters.
-
-    Parameters
-    ----------
-    spacing_arr : jnp.ndarray, shape (D,)
-        Lattice spacing in each dimension.
-    length_arr : jnp.ndarray, shape (D,)
-        Physical length of the lattice in each dimension.
-
-    Attributes
-    ----------
-    D : int
-        Number of spatial dimensions.
-    V : int
-        Total lattice volume.
-    lat_shape : tuple of int
-        Shape of the lattice.
-    '''
-    # array of spacing between lattice nodes in each D
-    spacing_arr: jnp.ndarray
-    # array of lattice lengths in each D
-    length_arr: jnp.ndarray
-    # number of spatial dimensions
-    D: int = field(init=False)
-    # total lattice volume
-    V: int = field(init=False)
-    # shape of the lattice in each D
-    lat_shape: tuple[int, ...] = field(init=False)
-
-    def __post_init__(self):
-        '''
-        initialization of derived geometric quantities
-        '''
-        # geom
-        if not isinstance(self.length_arr, jnp.ndarray):
-            raise TypeError("length_arr must be a jnp.ndarray.")
-        if not isinstance(self.spacing_arr, jnp.ndarray):
-            raise TypeError("spacing_arr must be a jnp.ndarray.")
-        if any(length <= 0 for length in self.length_arr):
-            raise ValueError("All lattice lengths must be positive.")
-        if any(spacing <= 0 for spacing in self.spacing_arr):
-            raise ValueError("All lattice spacings must be positive.")
-        if self.length_arr.shape != self.spacing_arr.shape:
-            raise ValueError("length_arr and spacing_arr "
-                             "must have the same shape.")
-
-        D = len(self.length_arr)
-        V = jnp.prod(self.length_arr)
-        # validate inputs
-        if D <= 0:
-            raise ValueError("Number of dimensions D must be positive.")
-
-        lat_shape = tuple((self.length_arr//self.spacing_arr).tolist())
-        if lat_shape != tuple(jnp.array(lat_shape, dtype=int)):
-            raise ValueError("Lattice lengths must be integer "
-                             "multiples of spacings in each dimension.")
-
-        # set derived fields
-        object.__setattr__(self, "D", D)
-        object.__setattr__(self, "V", V)
-        object.__setattr__(self, "lat_shape", lat_shape)
-
-
-@dataclass(frozen=True)
 class Phi4Params:
     '''Physical parameters of the lattice phi4 field theory.
 
@@ -189,3 +192,56 @@ class Phi4Params:
             raise TypeError("lam must be a float or int.")
         if not isinstance(self.kappa, numbers.Real):
             raise TypeError("kappa must be a float or int.")
+
+
+# ------------ Ising model -------
+
+
+@dataclass(frozen=True)
+class MetropMCConfig:
+    '''Configuration parameters for Metropolis MC steps.
+
+    Parameters
+    ----------
+    N_steps : int
+        Number of MC steps to run.
+    '''
+    N_steps: int  # number of MC steps to run
+    seed: int = 2  # random seed for MC steps
+    verbose: bool = False
+
+    def __post_init__(self):
+        '''
+        validate MC configuration parameters
+        '''
+        if not isinstance(self.N_steps, numbers.Integral) \
+           or self.N_steps <= 0:
+            raise ValueError("N_steps must be a positive integer.")
+        if not isinstance(self.seed, int):
+            raise TypeError("seed must be an integer.")
+        if not isinstance(self.verbose, bool):
+            raise TypeError("verbose must be a boolean.")
+
+
+@dataclass(frozen=True)
+class IsingParams:
+    '''Physical parameters of the Ising model.
+
+    Parameters
+    ----------
+    kappa : float
+        Coupling constant controlling interaction strength.
+    h : float, optional
+        External magnetic field strength (default=0.0).
+    '''
+    kappa: float  # coupling constant (interaction strength)
+    h: float = 0.0  # external magnetic field strength
+
+    def __post_init__(self):
+        '''
+        validate physical parameters
+        '''
+        if not isinstance(self.kappa, numbers.Real):
+            raise TypeError("kappa must be a float or int.")
+        if not isinstance(self.h, numbers.Real):
+            raise TypeError("h must be a float or int.")

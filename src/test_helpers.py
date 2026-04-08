@@ -1,5 +1,5 @@
 import numpy as np
-
+import jax.numpy as jnp
 
 def random_int_uniform(n=25, lower=-1000, upper=1000, seed=None):
     """Generate a list of n random integers
@@ -41,3 +41,30 @@ def random_float_uniform(n=25, lower=-1000, upper=1000, seed=None):
     rng = np.random.default_rng(seed)
     float_list = rng.uniform(lower, upper, size=n).tolist()
     return float_list
+
+def create_ising_field(L_array: jnp.ndarray,
+                       seed=0,
+                       batch_size: int = 1):
+    """Create a random Ising field configuration."""
+    D = len(L_array)
+    lat_shape = tuple(L_array.tolist())
+    rng = np.random.default_rng(seed)
+    if batch_size == 1:
+        sigma_x = jnp.array(rng.choice([-1, 1], size=lat_shape))
+    else:
+        sigma_x = jnp.array(rng.choice([-1, 1], size=(batch_size, *lat_shape)))
+
+    return sigma_x
+
+
+def create_zero_action_ising_field(L_array: jnp.ndarray,
+                                   seed=0,
+                                   batch_size: int = 1):
+    lat_shape = tuple(L_array.tolist())
+    V = int(jnp.prod(L_array))
+
+    if V % 2 != 0:
+        raise ValueError("Lattice volume must be even for zero-action config.")
+    # create balanced config with half +1 and half -1
+    rng = np.random.default_rng(seed)
+    max_tries = 10**6

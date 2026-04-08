@@ -8,9 +8,9 @@ from dataclasses import dataclass, field, replace
 from typing import Dict, Optional
 from layout_utils import infer_layout
 from prng import make_keys
-import hmc as hmc
-import prng as prng
-import params as params
+import hmc
+import prng
+import params
 import energetics as eng
 import numbers
 jax.config.update("jax_enable_x64", True)  # 64 bit
