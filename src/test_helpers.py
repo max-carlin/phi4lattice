@@ -1,6 +1,7 @@
 import numpy as np
 import jax.numpy as jnp
 
+
 def random_int_uniform(n=25, lower=-1000, upper=1000, seed=None):
     """Generate a list of n random integers
     between lower and upper (inclusive).
@@ -41,6 +42,7 @@ def random_float_uniform(n=25, lower=-1000, upper=1000, seed=None):
     rng = np.random.default_rng(seed)
     float_list = rng.uniform(lower, upper, size=n).tolist()
     return float_list
+
 
 def create_ising_field(L_array: jnp.ndarray,
                        seed=0,
