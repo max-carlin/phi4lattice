@@ -480,8 +480,8 @@ class TestIsingAction(unittest.TestCase):
                                           seed=random_seed)
 
         L_array = jnp.array(L_array_list)
-        sigma_x= create_ising_field(L_array,
-                                    seed=random_seed)
+        sigma_x = create_ising_field(L_array,
+                                     seed=random_seed)
         shift = sigma_x.ndim - D
         spatial_axes = tuple(range(shift, sigma_x.ndim))
         model = params.IsingParams(kappa=kappa, h=h)
@@ -495,9 +495,10 @@ class TestIsingAction(unittest.TestCase):
         self.assertAlmostEqual(S,
                                K - h * sigma_x.sum(axis=spatial_axes),
                                places=5)
-    
+
     def test_make_ising_energy_fns_S(self):
-        """test that make_ising_energy_fns returns functions that match ising_action_core"""
+        """test that make_ising_energy_fns
+         returns functions that match ising_action_core"""
         kappa = random_basic.uniform(-10, 10)
         h = random_basic.uniform(-10, 10)
         D = random_basic.randint(1, 5)
@@ -508,22 +509,23 @@ class TestIsingAction(unittest.TestCase):
                                           seed=random_seed)
 
         L_array = jnp.array(L_array_list)
-        sigma_x= create_ising_field(L_array,
-                                    seed=random_seed)
+        sigma_x = create_ising_field(L_array,
+                                     seed=random_seed)
         shift = sigma_x.ndim - D
         spatial_axes = tuple(range(shift, sigma_x.ndim))
         model = params.IsingParams(kappa=kappa, h=h)
         geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
                                       length_arr=L_array)
         S_core, K_core, W_core = ising_action_core(sigma_x,
-                                                  model=model,
-                                                  geom=geom,
-                                                  shift=shift,
-                                                  spatial_axes=spatial_axes)
-        S_Fn, propose_flip_Fn = make_ising_energy_fns(model=model,
-                                                      geom=geom,
-                                                      shift=shift,
-                                                      spatial_axes=spatial_axes)
+                                                   model=model,
+                                                   geom=geom,
+                                                   shift=shift,
+                                                   spatial_axes=spatial_axes)
+        S_Fn, propose_flip_Fn = make_ising_energy_fns(
+                                        model=model,
+                                        geom=geom,
+                                        shift=shift,
+                                        spatial_axes=spatial_axes)
         S_fn = S_Fn(sigma_x)
 
         self.assertTrue(jnp.allclose(S_fn, S_core, atol=1e-5))
@@ -538,17 +540,18 @@ class TestIsingAction(unittest.TestCase):
         batch_size = random_basic.randint(1, 5)
 
         sigma_x = create_ising_field(L_array,
-                                    seed=random_seed,
-                                    batch_size=batch_size)
+                                     seed=random_seed,
+                                     batch_size=batch_size)
         shift = sigma_x.ndim - D
         spatial_axes = tuple(range(shift, sigma_x.ndim))
         model = params.IsingParams(kappa=0.5, h=0.1)
         geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
                                       length_arr=L_array)
-        S_Fn, propose_flip_Fn = make_ising_energy_fns(model=model,
-                                                      geom=geom,
-                                                      shift=shift,
-                                                      spatial_axes=spatial_axes)
+        S_Fn, propose_flip_Fn = make_ising_energy_fns(
+                                    model=model,
+                                    geom=geom,
+                                    shift=shift,
+                                    spatial_axes=spatial_axes)
         site_key = jax.random.PRNGKey(random_seed)
         sigma_prop, site_coords = propose_flip_Fn(sigma_x, site_key)
         # check that exactly one spin is flipped in each field
