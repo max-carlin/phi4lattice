@@ -162,3 +162,25 @@ def _make_traj_keys(N_trajectories: int, *,
                                        randomize_keys=randomize_keys)
     traj_keys = traj_keys.reshape(N_trajectories, 2, 2)
     return traj_master, traj_keys
+
+# ------ Ising -----
+
+
+def create_ising_field(keys: jnp.ndarray,
+                       lat_shape: tuple[int, ...],
+                       distribution='uniform'):
+    """Create a random Ising field configuration."""
+    if distribution == 'uniform':
+        p = None
+    if distribution == 'all-up':
+        p = jnp.array([0.0, 1.0])
+
+    elif distribution == 'all-down':
+        p = jnp.array([1.0, 0.0])
+
+    rng = partial(random.choice,
+                  shape=lat_shape,
+                  a=jnp.array([-1, 1]),
+                  p=p)
+
+    return jax.vmap(rng)(keys)

@@ -1,5 +1,8 @@
 import numpy as np
 import jax.numpy as jnp
+import jax.random as random
+import jax
+import prng
 
 
 def random_int_uniform(n=25, lower=-1000, upper=1000, seed=None):
@@ -44,17 +47,48 @@ def random_float_uniform(n=25, lower=-1000, upper=1000, seed=None):
     return float_list
 
 
+# def create_ising_field(L_array: jnp.ndarray,
+#                        seed=0,
+#                        batch_size: int = 1):
+#     """Create a random Ising field configuration."""
+#     D = len(L_array)
+#     lat_shape = tuple(L_array.tolist())
+#     rng = np.random.default_rng(seed)
+#     if batch_size == 1:
+#         sigma_x = jnp.array(rng.choice([-1, 1], size=lat_shape))
+#     else:
+#         sigma_x = jnp.array(rng.choice([-1, 1],
+#                             size=(batch_size, *lat_shape)))
+
+#     return sigma_x
+
 def create_ising_field(L_array: jnp.ndarray,
                        seed=0,
-                       batch_size: int = 1):
+                       batch_size: int = 1,
+                       distribution='uniform'):
     """Create a random Ising field configuration."""
     D = len(L_array)
     lat_shape = tuple(L_array.tolist())
-    rng = np.random.default_rng(seed)
+    rng = random
+    key = random.key(seed)
+    if distribution == 'uniform':
+        p = None
+    if distribution == 'all-up':
+        p = jnp.array([0.0, 1.0])
+
+    elif distribution == 'all-down':
+        p = jnp.array([1.0, 0.0])
+
     if batch_size == 1:
-        sigma_x = jnp.array(rng.choice([-1, 1], size=lat_shape))
+        sigma_x = jnp.array(rng.choice(key,
+                                       jnp.array([-1, 1]),
+                                       p=p,
+                                       shape=lat_shape))
     else:
-        sigma_x = jnp.array(rng.choice([-1, 1], size=(batch_size, *lat_shape)))
+        sigma_x = jnp.array(rng.choice(key,
+                                       jnp.array([-1, 1]),
+                                       p=p,
+                                       shape=(batch_size, *lat_shape)))
 
     return sigma_x
 

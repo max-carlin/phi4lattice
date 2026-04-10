@@ -84,15 +84,21 @@ class LatticeGeometry:
                              "must have the same shape.")
 
         D = len(self.length_arr)
-        V = jnp.prod(self.length_arr)
+
         # validate inputs
         if D <= 0:
             raise ValueError("Number of dimensions D must be positive.")
 
-        lat_shape = tuple((self.length_arr//self.spacing_arr).tolist())
+        ratio = self.length_arr / self.spacing_arr
+        if not jnp.all(ratio == jnp.floor(ratio)):
+            raise ValueError("Lattice lengths must be integer "
+                             "multiples of spacings in each dimension.")
+        lat_shape = tuple(int(x) for x in ratio.tolist())
         if lat_shape != tuple(jnp.array(lat_shape, dtype=int)):
             raise ValueError("Lattice lengths must be integer "
                              "multiples of spacings in each dimension.")
+
+        V = int(jnp.prod(jnp.array(lat_shape, dtype=int)))
 
         # set derived fields
         object.__setattr__(self, "D", D)

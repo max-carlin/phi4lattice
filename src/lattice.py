@@ -9,6 +9,7 @@ from typing import Dict, Optional
 from layout_utils import infer_layout
 from prng import make_keys
 import hmc
+import metropolis_mc as mmc
 import prng
 import params
 import energetics as eng
@@ -454,5 +455,143 @@ class Phi4Lattice:
         (mom_final, phi_final), traj_outs_dict = result
         object.__setattr__(self, 'phi_x', phi_final)
         object.__setattr__(self, 'mom_x', mom_final)
+        object.__setattr__(self, 'trajectory_history', traj_outs_dict)
+        return self
+
+# --------- Ising model -------
+
+
+@dataclass
+class IsingLattice:
+    model: Optional[params.IsingParams] = None
+    geom: Optional[params.LatticeGeometry] = None
+    metrop_config: Optional[params.MetropMCConfig] = None
+
+    # mutable parameters/state
+    sigma_x: jnp.ndarray = field(init=False)
+    spatial_axes: tuple = field(init=False)
+    shift: int = field(init=False)
+
+    trajectory_history: Dict[str, jnp.ndarray] = field(
+                                                init=False,
+                                                default_factory=dict)
+
+    valid_dists: tuple = field(init=False, default=('all-up',
+                                                    'all-down',
+                                                    'checkerboard',
+                                                    'uniform',
+                                                    'zero-action'))
+
+    sigma_seed: int | jnp.ndarray | None = 0
+    n_keys: int = 1  # batch size (independent field configs)
+    sigma_dist: str = 'uniform'
+
+    mc_master_key: jnp.ndarray = field(init=False)
+
+    def __post_init__(self):
+        if self.model is None:
+            raise ValueError("model parameters must be provided.")
+        if self.geom is None:
+            raise ValueError("geometry parameters must be provided.")
+
+        # initialize sigma field configuration
+        if not isinstance(self.n_keys, numbers.Integral) or self.n_keys <= 0:
+            raise ValueError("n_keys must be positive integer.")
+        mc_master_key, mc_keys = make_keys(
+                                    self.n_keys,
+                                    self.sigma_seed,
+                                    randomize_keys=(self.sigma_seed is None))
+        sigma_x = self._generate_field_core(mc_keys,
+                                            self.geom.lat_shape,
+                                            distribution=self.sigma_dist)
+        object.__setattr__(self, 'mc_master_key', mc_master_key)
+        object.__setattr__(self, 'mc_keys', mc_keys)
+        object.__setattr__(self, "sigma_x", sigma_x)
+
+        # infer layout
+        spatial_axes, shift = infer_layout(self.sigma_x, self.geom.D)
+        object.__setattr__(self, 'spatial_axes',
+                           tuple(int(x) for x in spatial_axes))
+        object.__setattr__(self, 'shift', shift)
+
+    # field initialization methods
+    @staticmethod
+    def _generate_field_core(keys,
+                             lat_shape,
+                             distribution='uniform') -> jnp.ndarray:
+        if distribution in ('uniform', 'all-up', 'all-down'):
+            return prng.create_ising_field(keys,
+                                           lat_shape,
+                                           distribution=distribution)
+
+    def generate_field(self,
+                       N_fields: int,
+                       seed_or_key: int | jnp.ndarray | None = None,
+                       randomize_keys: bool = True,
+                       distribution: str = 'uniform'):
+        if distribution not in self.valid_dists:
+            raise ValueError(f"distribution must be one of {self.valid_dists};"
+                             f" got {distribution}.")
+        if N_fields <= 0 or not isinstance(N_fields, numbers.Integral):
+            raise ValueError("N_fields must be a positive integer.")
+        object.__setattr__(self, "sigma_dist", distribution)
+        object.__setattr__(self, "sigma_seed", seed_or_key)
+        object.__setattr__(self, "n_keys", N_fields)
+
+        master_key, keys = make_keys(N_fields, seed_or_key, randomize_keys)
+        object.__setattr__(self, "mc_master_key", master_key)
+        object.__setattr__(self, "mc_keys", keys)
+
+        sigma_xs = self._generate_field_core(keys,
+                                             self.geom.lat_shape,
+                                             distribution=distribution)
+        object.__setattr__(self, 'sigma_x', sigma_xs)
+
+        # infer layout
+        spatial_axes, shift = infer_layout(self.sigma_x, self.geom.D)
+        object.__setattr__(self, 'spatial_axes',
+                           tuple(int(x) for x in spatial_axes))
+        object.__setattr__(self, 'shift', shift)
+        return self
+
+# ----- metropolis MC evolution -------
+    def run_Metropolis_MC(self,
+                          cfg: params.MetropMCConfig,
+                          seed: int = None,
+                          randomize_keys: bool = False,
+                          measure_fns_dict: Dict[str, callable] = None):
+        if not isinstance(cfg, params.MetropMCConfig):
+            raise ValueError("cfg must be an instance of MetropMCConfig.")
+        if seed is None:
+            seed = cfg.seed
+        if measure_fns_dict is not None:
+            if not isinstance(measure_fns_dict, dict):
+                raise TypeError("measure_fns_dict must be a "
+                                "dict[str, Callable].")
+            for name, fn in measure_fns_dict.items():
+                if not callable(fn):
+                    raise TypeError(f"measure_fns_dict[{name}] "
+                                    "is not callable.")
+
+        sweep_master_key, sweep_keys = prng._make_traj_keys(
+                                                cfg.N_steps,
+                                                seed_or_key=seed,
+                                                randomize_keys=randomize_keys)
+        object.__setattr__(self, 'mc_master_key', sweep_master_key)
+
+        energy_fns = eng.make_ising_energy_fns
+        S_Fn, propose_flip_Fn = energy_fns(self.model,
+                                           self.geom,
+                                           self.shift,
+                                           self.spatial_axes)
+
+        result = mmc.run_Metropolis_MC(sigma_x0=self.sigma_x,
+                                       sweep_keys=sweep_keys,
+                                       cfg=cfg,
+                                       S_Fn=S_Fn,
+                                       propose_flip_Fn=propose_flip_Fn,
+                                       measure_fns_dict=measure_fns_dict)
+        sigma_final, traj_outs_dict = result
+        object.__setattr__(self, 'sigma_x', sigma_final)
         object.__setattr__(self, 'trajectory_history', traj_outs_dict)
         return self
