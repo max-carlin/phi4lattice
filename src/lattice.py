@@ -14,6 +14,7 @@ import prng
 import params
 import energetics as eng
 import numbers
+import observables
 jax.config.update("jax_enable_x64", True)  # 64 bit
 
 
@@ -458,6 +459,108 @@ class Phi4Lattice:
         object.__setattr__(self, 'trajectory_history', traj_outs_dict)
         return self
 
+    def thermalize(self,
+                   cfg: params.HMCConfig,
+                   seed: int = None,
+                   randomize_keys: bool = False,
+                   threshold: float = 0.1,
+                   max_loops: int = 10):
+        """Run repeated HMC evolutions until observables stabilize."""
+        measure_fns_dict = {"magnetization": lambda phi:
+                            observables.magnetization(
+                                        phi,
+                                        spatial_axes=self.spatial_axes,
+                                        volume=self.geom.V),
+                            "action": lambda phi: eng.phi4_action(
+                                                                phi,
+                                                                self.model,
+                                                                self.geom,
+                                                                self.shift,
+                                                                self.spatial_axes)}
+        if seed is None:
+            seed = cfg.seed
+        # initial error values set to infinity to ensure at least one trajectory runs
+        mag_error = jnp.inf
+        action_error = jnp.inf
+
+        # --- first pass
+        # initial run to populate trajectory history for error calculations
+        self.run_HMC(cfg=cfg,
+                     seed=seed,
+                     randomize_keys=randomize_keys,
+                     measure_fns_dict=measure_fns_dict)
+            # magnetization history of fields during trajectory
+        mag_hist = self.trajectory_history["magnetization"]
+        abs_mag_hist = jnp.abs(mag_hist)
+        # average magnetization over trajectory
+        abs_mag_mean = abs_mag_hist.mean()
+        abs_mag_std = abs_mag_hist.std()
+        # action history of fields during trajectory
+        action_hist = self.trajectory_history["action"]
+        action_mean = action_hist.mean()
+        action_std = action_hist.std()
+
+        # set as old values for error calculation
+        old_mag_mean = abs_mag_mean
+        old_mag_std = abs_mag_std
+
+        old_action_mean = action_mean
+        old_action_std = action_std
+
+        n_loops = 1
+        n_consecutive = 0
+        # require at least 3 consecutive loops below threshold for thermalization
+        minimum_consecutive = 3
+        current_seed = seed
+
+        while n_loops < max_loops:
+            current_seed = current_seed + 1
+
+            self.run_HMC(cfg=cfg,
+                         seed=current_seed,
+                         randomize_keys=randomize_keys,
+                         measure_fns_dict=measure_fns_dict)
+            mag_hist = self.trajectory_history["magnetization"]
+            abs_mag_hist = jnp.abs(mag_hist)
+            abs_mag_mean = abs_mag_hist.mean()
+            abs_mag_std = abs_mag_hist.std()
+            action_hist = self.trajectory_history["action"]
+            action_mean = action_hist.mean()
+            action_std = action_hist.std()
+
+            # calculate relative errors compared to previous loop
+            # normalize by std so that we can use same threshold
+            # considering scaling by min(old,new std), more strict but less stable
+            mag_error = jnp.abs(abs_mag_mean - old_mag_mean) / jnp.maximum(abs_mag_std, 1e-8)
+            action_error = jnp.abs(action_mean - old_action_mean) / jnp.maximum(action_std, 1e-8)
+
+            # update old values for next loop's error calculation
+            old_mag_mean = abs_mag_mean
+            old_mag_std = abs_mag_std
+            old_action_mean = action_mean
+            old_action_std = action_std
+
+            n_loops += 1
+
+            # check if both errors are below the threshold
+            if mag_error <= threshold and action_error <= threshold:
+                n_consecutive += 1
+            else:                
+                n_consecutive = 0  # reset if either error exceeds threshold
+
+            if n_consecutive >= minimum_consecutive:
+                # early exit if thermalization criteria met
+                break
+
+        diagnostic_msg = {"thermalized": (n_consecutive >= minimum_consecutive),
+                          "n_loops": n_loops,
+                          "mag_error": mag_error,
+                          "action_error": action_error,}
+        object.__setattr__(self, 'thermalization_diagnostics', diagnostic_msg)
+        return self
+
+        
+    
 # --------- Ising model -------
 
 
@@ -595,3 +698,123 @@ class IsingLattice:
         object.__setattr__(self, 'sigma_x', sigma_final)
         object.__setattr__(self, 'trajectory_history', traj_outs_dict)
         return self
+    
+
+    def thermalize(self,
+                cfg: params.MetropMCConfig,
+                seed: int = None,
+                randomize_keys: bool = False,
+                threshold: float = 0.1,
+                max_loops: int = 10,
+                minimum_consecutive: int = 3):
+        """
+        Run repeated HMC evolutions until observables stabilize
+        -- no monotonic drift in magnetization or action.
+        """
+        measure_fns_dict = {"magnetization": lambda phi:
+                            observables.magnetization(
+                                        phi,
+                                        spatial_axes=self.spatial_axes,
+                                        volume=self.geom.V),
+                            "action": lambda phi: eng.ising_action_core(
+                                                                phi,
+                                                                self.model,
+                                                                self.geom,
+                                                                self.shift,
+                                                                self.spatial_axes)[0]}
+        if seed is None:
+            seed = cfg.seed
+        # initial error values set to infinity to ensure at least one trajectory runs
+        mag_error = jnp.inf
+        action_error = jnp.inf
+
+        # --- first pass
+        # initial run to populate trajectory history for error calculations
+        self.run_Metropolis_MC(cfg=cfg,
+                     seed=seed,
+                     randomize_keys=randomize_keys,
+                     measure_fns_dict=measure_fns_dict)
+            # magnetization history of fields during trajectory
+        mag_hist = self.trajectory_history["magnetization"]
+        abs_mag_hist = jnp.abs(mag_hist)
+        # average magnetization over trajectory
+        abs_mag_mean = abs_mag_hist.mean()
+        abs_mag_std = abs_mag_hist.std()
+        # action history of fields during trajectory
+        action_hist = self.trajectory_history["action"]
+        action_mean = action_hist.mean()
+        action_std = action_hist.std()
+
+        # set as old values for error calculation
+        old_mag_mean = abs_mag_mean
+        old_mag_std = abs_mag_std
+
+        old_action_mean = action_mean
+        old_action_std = action_std
+
+        loop_history_dict = {"abs_mag_mean": jnp.array([abs_mag_mean]),
+                             "abs_mag_std": jnp.array([abs_mag_std]),
+                             "mag_error": jnp.array([mag_error]),
+                             "action_error": jnp.array([action_error]),
+                             "action_mean": jnp.array([action_mean]),
+                             "action_std": jnp.array([action_std])}
+
+        n_loops = 1
+        n_consecutive = 0
+        # require at least 3 consecutive loops below threshold for thermalization
+        current_seed = seed
+        # swap to jax.lax.while_loop
+        while n_loops < max_loops:
+            current_seed = current_seed + 1
+
+            self.run_Metropolis_MC(cfg=cfg,
+                         seed=current_seed,
+                         randomize_keys=randomize_keys,
+                         measure_fns_dict=measure_fns_dict)
+            mag_hist = self.trajectory_history["magnetization"]
+            abs_mag_hist = jnp.abs(mag_hist)
+            abs_mag_mean = abs_mag_hist.mean()
+            abs_mag_std = abs_mag_hist.std()
+            action_hist = self.trajectory_history["action"]
+            action_mean = action_hist.mean()
+            action_std = action_hist.std()
+
+            # calculate relative errors compared to previous loop
+            # normalize by std so that we can use same threshold
+            # considering scaling by min(old,new std), more strict but less stable
+            mag_error = jnp.abs(abs_mag_mean - old_mag_mean) / jnp.maximum(abs_mag_std, 1e-8)
+            action_error = jnp.abs(action_mean - old_action_mean) / jnp.maximum(action_std, 1e-8)
+
+            # update old values for next loop's error calculation
+            old_mag_mean = abs_mag_mean
+            old_mag_std = abs_mag_std
+            old_action_mean = action_mean
+            old_action_std = action_std
+
+            n_loops += 1
+
+            loop_history_dict["abs_mag_mean"] = jnp.append(loop_history_dict["abs_mag_mean"], abs_mag_mean)
+            loop_history_dict["abs_mag_std"] = jnp.append(loop_history_dict["abs_mag_std"], abs_mag_std)
+            loop_history_dict["mag_error"] = jnp.append(loop_history_dict["mag_error"], mag_error)
+            loop_history_dict["action_error"] = jnp.append(loop_history_dict["action_error"], action_error)
+            loop_history_dict["action_mean"] = jnp.append(loop_history_dict["action_mean"], action_mean)
+            loop_history_dict["action_std"] = jnp.append(loop_history_dict["action_std"], action_std)
+
+            # check if both errors are below the threshold
+            if mag_error <= threshold and action_error <= threshold:
+                n_consecutive += 1
+            else:                
+                n_consecutive = 0  # reset if either error exceeds threshold
+
+            if n_consecutive >= minimum_consecutive:
+                # early exit if thermalization criteria met
+                break
+
+        thermalization_diagnostics = {"thermalized": (n_consecutive >= minimum_consecutive),
+                                      "n_loops": n_loops,
+                                      "final_mag_error": mag_error,
+                                      "final_action_error": action_error,
+                                      "history": loop_history_dict}
+        object.__setattr__(self, 'thermalization_diagnostics', thermalization_diagnostics)
+        return self
+

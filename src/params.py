@@ -212,6 +212,9 @@ class MetropMCConfig:
     N_steps : int
         Number of MC steps to run.
     '''
+    # N_steps is the number of proposed flips,
+    # so it should be large enough to ensure good sampling 
+    # of the configuration space. ~ volume of the lattice
     N_steps: int  # number of MC steps to run
     seed: int = 2  # random seed for MC steps
     verbose: bool = False

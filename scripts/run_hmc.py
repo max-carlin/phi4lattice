@@ -68,11 +68,15 @@ def main(lam=1.0, kappa=0.1, N_steps=10, eps=0.05, xi=0.2,
     print("Final phi_x shape:", phi_final.shape)
 
     # Save simple observables from the HMC process
-    m = magnetization(phi_final, D=geom.D)
+    m = magnetization(phi_final,
+                      spatial_axes=lat.spatial_axes,
+                      volume=lat.V)
     print("Magnetization per configuration:", m)
     print("Average magnetization:", m.mean())
 
-    U4 = binder_cumulant(phi_final, D=geom.D)
+    U4 = binder_cumulant(phi_final,
+                         spatial_axes=lat.spatial_axes,
+                         volume=lat.V)
     print("Binder cumulant U4:", U4)
 
     # Inspect acceptance statistics to ensure viable integrator params

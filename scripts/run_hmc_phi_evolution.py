@@ -66,7 +66,9 @@ def main():
         seed=cfg.seed,          # seed for HMC trajectory keys
         randomize_keys=False,   # make it reproducible
         measure_fns_dict={"magnetization": lambda phi:
-                          magnetization(phi, geom.D),
+                          magnetization(phi,
+                                        spatial_axes=lat.spatial_axes,
+                                        volume=lat.V),
                           "phi": lambda phi: phi}
     )
 
@@ -74,11 +76,15 @@ def main():
     print("Final phi_x shape:", phi_final.shape)
 
     # Save simple observables from the HMC process
-    m = magnetization(phi_final, D=geom.D)
+    m = magnetization(phi_final,
+                      spatial_axes=lat.spatial_axes,
+                      volume=lat.V)
     print("Magnetization per configuration:", m)
     print("Average magnetization:", m.mean())
 
-    U4 = binder_cumulant(phi_final, D=geom.D)
+    U4 = binder_cumulant(phi_final,
+                         spatial_axes=lat.spatial_axes,
+                         volume=lat.V)
     print("Binder cumulant U4:", U4)
 
     # Inspect acceptance statistics to ensure viable integrator params
