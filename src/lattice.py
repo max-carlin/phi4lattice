@@ -662,7 +662,9 @@ class IsingLattice:
                           cfg: params.MetropMCConfig,
                           seed: int = None,
                           randomize_keys: bool = False,
-                          measure_fns_dict: Dict[str, callable] = None):
+                          measure_fns_dict: Dict[str, callable] = None,
+                          store_proposal_history: bool = False,
+                          thermalization_summary: bool = False):
         if not isinstance(cfg, params.MetropMCConfig):
             raise ValueError("cfg must be an instance of MetropMCConfig.")
         if seed is None:
@@ -683,7 +685,7 @@ class IsingLattice:
         object.__setattr__(self, 'mc_master_key', sweep_master_key)
 
         energy_fns = eng.make_ising_energy_fns
-        S_Fn, propose_flip_Fn = energy_fns(self.model,
+        S_Fn, propose_flip_Fn, local_delta_S_Fn = energy_fns(self.model,
                                            self.geom,
                                            self.shift,
                                            self.spatial_axes)
@@ -693,7 +695,10 @@ class IsingLattice:
                                        cfg=cfg,
                                        S_Fn=S_Fn,
                                        propose_flip_Fn=propose_flip_Fn,
-                                       measure_fns_dict=measure_fns_dict)
+                                       local_delta_S_Fn=local_delta_S_Fn,
+                                       measure_fns_dict=measure_fns_dict,
+                                       store_proposal_history=store_proposal_history,
+                                       thermalization_summary=thermalization_summary)
         sigma_final, traj_outs_dict = result
         object.__setattr__(self, 'sigma_x', sigma_final)
         object.__setattr__(self, 'trajectory_history', traj_outs_dict)
@@ -706,58 +711,72 @@ class IsingLattice:
                 randomize_keys: bool = False,
                 threshold: float = 0.1,
                 max_loops: int = 10,
-                minimum_consecutive: int = 3):
+                minimum_consecutive: int = 3,
+                store_proposal_history: bool = False,
+                store_loop_history: bool = True,
+                store_error_history: bool = False):
         """
-        Run repeated HMC evolutions until observables stabilize
+        Run repeated Metrop-MC evolutions until observables stabilize
         -- no monotonic drift in magnetization or action.
         """
-        measure_fns_dict = {"magnetization": lambda phi:
-                            observables.magnetization(
-                                        phi,
-                                        spatial_axes=self.spatial_axes,
-                                        volume=self.geom.V),
-                            "action": lambda phi: eng.ising_action_core(
-                                                                phi,
-                                                                self.model,
-                                                                self.geom,
-                                                                self.shift,
-                                                                self.spatial_axes)[0]}
+        # measure_fns_dict = {"magnetization": lambda phi:
+        #                     observables.magnetization(
+        #                                 phi,
+        #                                 spatial_axes=self.spatial_axes,
+        #                                 volume=self.geom.V),
+        #                     "action": lambda phi: eng.ising_action_core(
+        #                                                         phi,
+        #                                                         self.model,
+        #                                                         self.geom,
+        #                                                         self.shift,
+        #                                                         self.spatial_axes)[0]}
         if seed is None:
             seed = cfg.seed
         # initial error values set to infinity to ensure at least one trajectory runs
-        mag_error = jnp.inf
-        action_error = jnp.inf
+        # mag_error = jnp.inf
+        # action_error = jnp.inf
 
         # --- first pass
         # initial run to populate trajectory history for error calculations
         self.run_Metropolis_MC(cfg=cfg,
                      seed=seed,
                      randomize_keys=randomize_keys,
-                     measure_fns_dict=measure_fns_dict)
+                    #  measure_fns_dict=measure_fns_dict,
+                     store_proposal_history=store_proposal_history,
+                     thermalization_summary=True)
             # magnetization history of fields during trajectory
-        mag_hist = self.trajectory_history["magnetization"]
-        abs_mag_hist = jnp.abs(mag_hist)
+        summary = self.trajectory_history
+        # mag_hist = self.trajectory_history["magnetization"]
+        # abs_mag_hist = jnp.abs(mag_hist)
         # average magnetization over trajectory
-        abs_mag_mean = abs_mag_hist.mean()
-        abs_mag_std = abs_mag_hist.std()
+        # abs_mag_mean = abs_mag_hist.mean()
+        # abs_mag_std = abs_mag_hist.std()
+
+        abs_mag_mean = summary["abs_mag_mean"]/self.geom.V
+        abs_mag_std = summary["abs_mag_std"]/self.geom.V
+        mag_error = jnp.full_like(abs_mag_mean, jnp.inf)  # set initial error to inf for first loop
         # action history of fields during trajectory
-        action_hist = self.trajectory_history["action"]
-        action_mean = action_hist.mean()
-        action_std = action_hist.std()
+        # action_hist = self.trajectory_history["action"]
+        action_mean = summary["action_mean"]
+        action_std = summary["action_std"]
+        action_error = jnp.full_like(action_mean, jnp.inf)  # set initial error to inf for first loop
 
         # set as old values for error calculation
         old_mag_mean = abs_mag_mean
-        old_mag_std = abs_mag_std
+        # old_mag_std = abs_mag_std
 
         old_action_mean = action_mean
-        old_action_std = action_std
-
-        loop_history_dict = {"abs_mag_mean": jnp.array([abs_mag_mean]),
-                             "abs_mag_std": jnp.array([abs_mag_std]),
-                             "mag_error": jnp.array([mag_error]),
-                             "action_error": jnp.array([action_error]),
-                             "action_mean": jnp.array([action_mean]),
-                             "action_std": jnp.array([action_std])}
+        # old_action_std = action_std
+        if store_loop_history:
+            loop_history_dict = {"abs_mag_mean": [abs_mag_mean],
+                                "abs_mag_std": [abs_mag_std],
+                                "action_mean": [action_mean],
+                                "action_std": [action_std]}
+            if store_error_history:
+                loop_history_dict["mag_error"] = [mag_error]
+                loop_history_dict["action_error"] = [action_error]
+        else:
+            loop_history_dict = {}
 
         n_loops = 1
         n_consecutive = 0
@@ -770,14 +789,22 @@ class IsingLattice:
             self.run_Metropolis_MC(cfg=cfg,
                          seed=current_seed,
                          randomize_keys=randomize_keys,
-                         measure_fns_dict=measure_fns_dict)
-            mag_hist = self.trajectory_history["magnetization"]
-            abs_mag_hist = jnp.abs(mag_hist)
-            abs_mag_mean = abs_mag_hist.mean()
-            abs_mag_std = abs_mag_hist.std()
-            action_hist = self.trajectory_history["action"]
-            action_mean = action_hist.mean()
-            action_std = action_hist.std()
+                        #  measure_fns_dict=measure_fns_dict,
+                         store_proposal_history=store_proposal_history,
+                         thermalization_summary=True)
+            # mag_hist = self.trajectory_history["magnetization"]
+            # abs_mag_hist = jnp.abs(mag_hist)
+            # abs_mag_mean = abs_mag_hist.mean()
+            # abs_mag_std = abs_mag_hist.std()
+            # action_hist = self.trajectory_history["action"]
+            # action_mean = action_hist.mean()
+            # action_std = action_hist.std()
+
+            summary = self.trajectory_history
+            abs_mag_mean = summary["abs_mag_mean"]/self.geom.V
+            abs_mag_std = summary["abs_mag_std"]/self.geom.V
+            action_mean = summary["action_mean"]
+            action_std = summary["action_std"]
 
             # calculate relative errors compared to previous loop
             # normalize by std so that we can use same threshold
@@ -787,21 +814,23 @@ class IsingLattice:
 
             # update old values for next loop's error calculation
             old_mag_mean = abs_mag_mean
-            old_mag_std = abs_mag_std
+            # old_mag_std = abs_mag_std
             old_action_mean = action_mean
-            old_action_std = action_std
+            # old_action_std = action_std
 
             n_loops += 1
+            if store_loop_history:
+                loop_history_dict["action_mean"].append(action_mean)
+                loop_history_dict["action_std"].append(action_std)
+                loop_history_dict["abs_mag_mean"].append(abs_mag_mean)
+                loop_history_dict["abs_mag_std"].append(abs_mag_std)
+                if store_error_history:
+                    loop_history_dict["mag_error"].append(mag_error)
+                    loop_history_dict["action_error"].append(action_error)
 
-            loop_history_dict["abs_mag_mean"] = jnp.append(loop_history_dict["abs_mag_mean"], abs_mag_mean)
-            loop_history_dict["abs_mag_std"] = jnp.append(loop_history_dict["abs_mag_std"], abs_mag_std)
-            loop_history_dict["mag_error"] = jnp.append(loop_history_dict["mag_error"], mag_error)
-            loop_history_dict["action_error"] = jnp.append(loop_history_dict["action_error"], action_error)
-            loop_history_dict["action_mean"] = jnp.append(loop_history_dict["action_mean"], action_mean)
-            loop_history_dict["action_std"] = jnp.append(loop_history_dict["action_std"], action_std)
 
             # check if both errors are below the threshold
-            if mag_error <= threshold and action_error <= threshold:
+            if bool(jnp.all((mag_error<= threshold) & (action_error <= threshold))):
                 n_consecutive += 1
             else:                
                 n_consecutive = 0  # reset if either error exceeds threshold
@@ -809,7 +838,11 @@ class IsingLattice:
             if n_consecutive >= minimum_consecutive:
                 # early exit if thermalization criteria met
                 break
-
+        
+        # convert loop history lists to arrays for easier analysis downstream
+        if store_loop_history:
+            loop_history_dict = {key: jnp.stack(value)
+                                for key, value in loop_history_dict.items()}
         thermalization_diagnostics = {"thermalized": (n_consecutive >= minimum_consecutive),
                                       "n_loops": n_loops,
                                       "final_mag_error": mag_error,

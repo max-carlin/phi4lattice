@@ -177,7 +177,8 @@ def make_ising_energy_fns(model: params.IsingParams,
                           spatial_axes: tuple[int, ...]
                           ) -> tuple[
                               Callable[[jnp.ndarray], jnp.ndarray],
-                              Callable[[jnp.ndarray], jnp.ndarray]]:
+                              Callable[[jnp.ndarray], jnp.ndarray],
+                              Callable[[jnp.ndarray, tuple[jnp.ndarray, ...]], jnp.ndarray]]:
     """
     Build energy function for Ising theory:
       S_Fn(sigma): per-config action (shape () or (N,))
@@ -219,8 +220,57 @@ def make_ising_energy_fns(model: params.IsingParams,
             # gather old spins at site for each config in batch
             batch_idxs = jnp.arange(batch_size)
             full_coords = (batch_idxs, *site_coords)
-            old_spins = sigma_x[full_coords]
+            old_spin = sigma_x[full_coords]
             # flip spins at site for each config
-            sigma_prop = sigma_x.at[full_coords].set(-old_spins)
-        return sigma_prop, site_coords
-    return S_Fn, propose_flip_Fn
+            sigma_prop = sigma_x.at[full_coords].set(-old_spin)
+        return sigma_prop, site_coords, old_spin
+
+    def local_delta_S_Fn(sigma_x: jnp.ndarray,
+                       site_coords: tuple[jnp.ndarray, ...]
+                       ) -> jnp.ndarray:
+        # compute change in action from flipping spin at site
+        # only need to compute change in local terms involving
+        # flipped spin and neighbors
+        if shift == 0:
+            old_spin = sigma_x[site_coords]
+            neighbor_sum = jnp.zeros_like(old_spin)
+            for mu in range(geom.D):
+                L_mu = geom.lat_shape[mu]
+
+                plus_mu_coords = list(site_coords)
+                # mod L_mu for periodic boundary conditions
+                # 0-> 1 -> 2 -> ... -> L_mu-1 -> 0
+                plus_mu_coords[mu] = (plus_mu_coords[mu] + 1) % L_mu
+
+                minus_mu_coords = list(site_coords)
+                minus_mu_coords[mu] = (minus_mu_coords[mu] - 1) % L_mu
+                
+                plus_coords = tuple(plus_mu_coords)
+                minus_coords = tuple(minus_mu_coords)
+
+                neighbor_sum += sigma_x[plus_coords] + sigma_x[minus_coords]
+            
+        else:
+            batch_size = sigma_x.shape[0]
+            batch_idxs = jnp.arange(batch_size)
+
+            full_coords = (batch_idxs, *site_coords)
+            old_spin = sigma_x[full_coords]
+            neighbor_sum = jnp.zeros_like(old_spin)
+            for mu in range(geom.D):
+                L_mu = geom.lat_shape[mu]
+
+                plus_mu_coords = list(site_coords)
+                plus_mu_coords[mu] = (plus_mu_coords[mu] + 1) % L_mu
+
+                minus_mu_coords = list(site_coords)
+                minus_mu_coords[mu] = (minus_mu_coords[mu] - 1) % L_mu
+                
+                plus_coords = (batch_idxs, *tuple(plus_mu_coords))
+                minus_coords = (batch_idxs, *tuple(minus_mu_coords))
+
+                neighbor_sum += sigma_x[plus_coords] + sigma_x[minus_coords]
+
+        delta_S = 2 * old_spin * (model.kappa * neighbor_sum + model.h)
+        return delta_S
+    return S_Fn, propose_flip_Fn, local_delta_S_Fn

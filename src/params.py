@@ -136,8 +136,11 @@ class HMCConfig:
         If True, print progress information during HMC evolution.
     '''
     N_steps: int  # number of integrator steps per trajectory
-    eps: float  # integrator step size
-    xi: float | None = 0.1  # omelyan integrator parameter
+    # tau = N_steps * eps is the total trajectory length in "simulation time"
+    # and tau ~ 1 is a common choice
+    eps: float | None  # integrator step size
+    # 0.19 is a common choice for xi
+    xi: float | None = 0.1931833  # omelyan integrator parameter
     integrator: str = 'omelyan'  # 'leapfrog' or 'omelyan'
     # seed for random momentum/metropolis criteria generation
     seed: int = 2  # default seed for hmc trajectories
@@ -163,6 +166,9 @@ class HMCConfig:
             raise ValueError("N_steps must be positive int.")
         if self.eps <= 0:
             raise ValueError("eps must be positive.")
+        if self.eps is None:
+            # default to total trajectory length ~ 1
+            self.eps = 1/self.N_steps
         if not isinstance(self.seed, int):
             raise TypeError("seed must be an integer.")
         if not isinstance(self.N_trajectories, numbers.Integral) \
