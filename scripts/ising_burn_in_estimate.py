@@ -11,13 +11,16 @@ import argparse
 import time
 
 model = IsingParams(kappa=0.44, h=0.0)
-N_sweeps = 10**4
+N_sweeps = 10**5
 threshold = 1
-num_seeds = 5
+minimum_consecutive =5
+num_seeds = 1
 loops_to_thermalize_dict = {}
-lattice_sizes = [8, 16, 32, 64]
-sigma_dist = ['uniform', 'all-up']
-
+# lattice_sizes = [8, 16, 32, 64]
+lattice_sizes = [32]
+# sigma_dist = ['uniform', 'all-up']
+# sigma_dist = ['all-up']
+sigma_dist = ['uniform']
 outpath = "results/ising_burn_in_estimate.csv"
 
 
@@ -33,7 +36,7 @@ def append_row_csv(row: dict,
             writer.writeheader()
         writer.writerow(row)
 
-start = time.perf_counter()
+# start = time.perf_counter()
 for dist in sigma_dist:
     print(f"Testing thermalization for sigma_dist = {dist}")
     for L in lattice_sizes:
@@ -58,13 +61,25 @@ for dist in sigma_dist:
                         max_loops=N_sweeps,
                         threshold=threshold,
                         store_loop_history=False,
-                        store_error_history=False)
-            elapsed_time_sec = time.perf_counter() - start
-            row = {"sigma_dist": dist,
-                "L": L,
-                "thermalized": lat.thermalization_diagnostics['thermalized'],
-                "loops_to_thermalize": lat.thermalization_diagnostics['n_loops'],
-                "seed": seed,
-                "elapsed_time_sec": elapsed_time_sec}
+                        store_error_history=False,
+                        minimum_consecutive=minimum_consecutive)
+            lat.sigma_x.block_until_ready()
+            # elapsed_time_sec = time.perf_counter() - start
+            # row = {"sigma_dist": dist,
+            #     "L": L,
+            #     "thermalized": lat.thermalization_diagnostics['thermalized'],
+            #     "loops_to_thermalize": lat.thermalization_diagnostics['n_loops'],
+            #     "seed": seed}
+            row = {"kappa": float(model.kappa),
+                    "threshold": float(threshold),
+                    "minimum_consecutive": int(minimum_consecutive),
+                    "max_loops": int(N_sweeps),
+                    "sigma_dist": dist,
+                    "L": int(L),
+                    "thermalized": bool(lat.thermalization_diagnostics["thermalized"]),
+                    "loops_to_thermalize": int(lat.thermalization_diagnostics["n_loops"]),
+                    "seed": int(seed),
+}
+                # "elapsed_time_sec": elapsed_time_sec}
             append_row_csv(row, outpath)
-print("total elapsed time (sec):", time.perf_counter() - start)
+# print("total elapsed time (sec):", time.perf_counter() - start)
