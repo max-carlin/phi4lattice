@@ -2,6 +2,8 @@ import csv
 import matplotlib.pyplot as plt
 import sys
 from collections import defaultdict
+
+
 x_label_dict = {"kappa": r"$\kappa$",
                 "kT_over_J": r"$k_B T/J = 1/\kappa$",
                 "L": r"$L$"}

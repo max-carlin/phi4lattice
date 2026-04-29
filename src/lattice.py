@@ -463,25 +463,32 @@ class Phi4Lattice:
                    cfg: params.HMCConfig,
                    seed: int = None,
                    randomize_keys: bool = False,
-                   threshold: float = 0.1,
-                   max_loops: int = 10):
-        """Run repeated HMC evolutions until observables stabilize."""
+                   threshold: float = 1,
+                   max_loops: int = 10,
+                   minimum_consecutive: int = 3):
+        """
+        Run repeated HMC evolutions until observables stabilize.
+        Currently only written for single configuration (n_keys=1) for simplicity of diagnostics.
+        """
         measure_fns_dict = {"magnetization": lambda phi:
                             observables.magnetization(
                                         phi,
                                         spatial_axes=self.spatial_axes,
                                         volume=self.geom.V),
-                            "action": lambda phi: eng.phi4_action(
+                            "action": lambda phi: eng.phi4_action_core(
                                                                 phi,
                                                                 self.model,
                                                                 self.geom,
                                                                 self.shift,
-                                                                self.spatial_axes)}
+                                                                self.spatial_axes)[0]}
+        if self.n_keys != 1:
+            raise NotImplementedError("thermalize currently only implemented for n_keys=1 for simplicity of diagnostics.")
+        if cfg.N_trajectories < 3:
+            raise ValueError("cfg.N_trajectories must be at least 3 for "
+                             "thermalization to compute std.")
+
         if seed is None:
             seed = cfg.seed
-        # initial error values set to infinity to ensure at least one trajectory runs
-        mag_error = jnp.inf
-        action_error = jnp.inf
 
         # --- first pass
         # initial run to populate trajectory history for error calculations
@@ -489,30 +496,39 @@ class Phi4Lattice:
                      seed=seed,
                      randomize_keys=randomize_keys,
                      measure_fns_dict=measure_fns_dict)
-            # magnetization history of fields during trajectory
-        mag_hist = self.trajectory_history["magnetization"]
-        abs_mag_hist = jnp.abs(mag_hist)
+        summary = self.trajectory_history
+
+        # magnetization history of fields during trajectory
+        mag_hist = summary["magnetization"]
+
         # average magnetization over trajectory
+        abs_mag_hist = jnp.abs(mag_hist)
         abs_mag_mean = abs_mag_hist.mean()
         abs_mag_std = abs_mag_hist.std()
+        mag_error = jnp.full_like(mag_hist, jnp.inf)  # inf error for first loop
+
         # action history of fields during trajectory
-        action_hist = self.trajectory_history["action"]
+        action_hist = summary["action"]
         action_mean = action_hist.mean()
         action_std = action_hist.std()
+        action_error = jnp.full_like(action_hist, jnp.inf)  # inf error for first loop
 
         # set as old values for error calculation
         old_mag_mean = abs_mag_mean
-        old_mag_std = abs_mag_std
-
         old_action_mean = action_mean
-        old_action_std = action_std
 
         n_loops = 1
         n_consecutive = 0
         # require at least 3 consecutive loops below threshold for thermalization
-        minimum_consecutive = 3
+        # minimum_consecutive = 3
         current_seed = seed
 
+        loop_history_dict = {"abs_mag_mean": [abs_mag_mean],
+                            "abs_mag_std": [abs_mag_std],
+                            "mag_error": [mag_error],
+                            "action_mean": [action_mean],
+                            "action_std": [action_std],
+                            "action_error": [action_error]}
         while n_loops < max_loops:
             current_seed = current_seed + 1
 
@@ -536,14 +552,21 @@ class Phi4Lattice:
 
             # update old values for next loop's error calculation
             old_mag_mean = abs_mag_mean
-            old_mag_std = abs_mag_std
             old_action_mean = action_mean
-            old_action_std = action_std
 
             n_loops += 1
+            # store loop history
+            loop_history_dict["abs_mag_mean"].append(abs_mag_mean)
+            loop_history_dict["abs_mag_std"].append(abs_mag_std)
+            loop_history_dict["mag_error"].append(mag_error)
+            loop_history_dict["action_mean"].append(action_mean)
+            loop_history_dict["action_std"].append(action_std)
+            loop_history_dict["action_error"].append(action_error)
+            
+
 
             # check if both errors are below the threshold
-            if mag_error <= threshold and action_error <= threshold:
+            if bool(jnp.all((mag_error <= threshold) & (action_error <= threshold))):
                 n_consecutive += 1
             else:                
                 n_consecutive = 0  # reset if either error exceeds threshold
@@ -553,9 +576,10 @@ class Phi4Lattice:
                 break
 
         diagnostic_msg = {"thermalized": (n_consecutive >= minimum_consecutive),
-                          "n_loops": n_loops,
+                          "n_trajectories": n_loops * cfg.N_trajectories,
                           "mag_error": mag_error,
-                          "action_error": action_error,}
+                          "action_error": action_error,
+                          "loop_history": loop_history_dict}
         object.__setattr__(self, 'thermalization_diagnostics', diagnostic_msg)
         return self
 
@@ -709,7 +733,7 @@ class IsingLattice:
                 cfg: params.MetropMCConfig,
                 seed: int = None,
                 randomize_keys: bool = False,
-                threshold: float = 0.1,
+                threshold: float = 1,
                 max_loops: int = 10,
                 minimum_consecutive: int = 3,
                 store_proposal_history: bool = False,

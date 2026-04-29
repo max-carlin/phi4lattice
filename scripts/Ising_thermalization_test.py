@@ -82,12 +82,6 @@ loops_to_thermalize_dict = {}
 lattice_sizes = [8, 16, 32, 64]
 sigma_dist = ['uniform', 'all-up']
 
-# def write_results_csv(reslts: dict,
-#                       out_path: str):
-       
-#        )
-
-
 for dist in sigma_dist:
     print(f"Testing thermalization for sigma_dist = {dist}")
     for L in lattice_sizes:

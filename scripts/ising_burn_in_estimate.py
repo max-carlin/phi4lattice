@@ -13,7 +13,7 @@ import time
 model = IsingParams(kappa=0.44, h=0.0)
 N_sweeps = 10**5
 threshold = 1
-minimum_consecutive =5
+minimum_consecutive =3
 num_seeds = 1
 loops_to_thermalize_dict = {}
 # lattice_sizes = [8, 16, 32, 64]
